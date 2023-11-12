@@ -1,0 +1,25 @@
+# air.toml
+
+# Entrypoint is the entry file of your application.
+# This will be the file that is executed when you run 'air'.
+entry = "main.go"
+
+# Replace these with your actual main package and path.
+[build]
+  # Binary name.
+  bin = "myapp"
+
+  # Directory of the Go files.
+  src = "./"
+
+  # Exclude unnecessary files.
+  exclude = [
+    "assets",
+    "docs",
+    "test",
+    "tmp",
+  ]
+
+[web]
+  # HTTP server port.
+  addr = ":8080"

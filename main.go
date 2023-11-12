@@ -1,11 +1,11 @@
 package main
 
 import (
+	"daijai/config"
+	"daijai/server"
 	"flag"
 	"fmt"
 	"os"
-	"golang-rest-api-starter/config"
-	"golang-rest-api-starter/server"
 )
 
 func main() {
@@ -16,5 +16,6 @@ func main() {
 	}
 	flag.Parse()
 	config.Init(*environment)
+	config.ConnectDB()
 	server.Init()
 }

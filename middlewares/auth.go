@@ -1,7 +1,7 @@
 package middlewares
 
 import (
-	"golang-rest-api-starter/config"
+	"daijai/config"
 	"strings"
 
 	"github.com/gin-gonic/gin"

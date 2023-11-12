@@ -3,11 +3,11 @@
 package tests
 
 import (
+	"daijai/config"
+	"daijai/server"
 	"testing"
 
 	"encoding/json"
-	"golang-rest-api-starter/config"
-	"golang-rest-api-starter/server"
 	"net/http"
 	"net/http/httptest"
 

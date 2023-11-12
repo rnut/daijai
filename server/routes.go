@@ -1,16 +1,17 @@
 package server
 
 import (
-	"golang-rest-api-starter/controllers"
-	"golang-rest-api-starter/docs"
+	"daijai/controllers"
+	"daijai/docs"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	ginSwagger "github.com/swaggo/gin-swagger"   // gin-swagger middleware
 	"github.com/swaggo/gin-swagger/swaggerFiles" // swagger embed files
+	"gorm.io/gorm"
 )
 
-func SetupRouter() *gin.Engine {
+func SetupRouter(db *gorm.DB) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
@@ -19,9 +20,8 @@ func SetupRouter() *gin.Engine {
 	healthcheck := router.Group("health")
 	{
 		health := new(controllers.HealthController)
-		ping := new(controllers.PingController)
 		healthcheck.GET("/health", health.Status)
-		healthcheck.GET("/ping", ping.Ping)
+		healthcheck.GET("/ping", health.Ping)
 	}
 
 	//Routes for swagger
@@ -40,6 +40,36 @@ func SetupRouter() *gin.Engine {
 	router.NoRoute(func(c *gin.Context) {
 		c.Redirect(http.StatusMovedPermanently, "/swagger/index.html")
 	})
+
+	materials := router.Group("materials")
+	{
+		materialController := controllers.NewMaterialController(db)
+		materials.POST("/", materialController.CreateMaterial)
+		materials.GET("/", materialController.GetMaterials)
+		materials.GET("/:id", materialController.GetMaterialByID)
+		materials.PUT("/:id", materialController.UpdateMaterial)
+		materials.DELETE("/:id", materialController.DeleteMaterial)
+	}
+
+	drawings := router.Group("drawings")
+	{
+		drawingCtrl := controllers.NewDrawingController(db)
+		drawings.POST("/", drawingCtrl.CreateDrawing)
+		drawings.GET("/", drawingCtrl.GetDrawings)
+		drawings.GET("/:id", drawingCtrl.GetDrawingByID)
+		// drawings.PUT("/:id", drawingCtrl.UpdateDrawing)
+		drawings.DELETE("/:id", drawingCtrl.DeleteDrawing)
+	}
+
+	withdrawals := router.Group("withdrawals")
+	{
+		withdrawCtrl := controllers.NewWithdrawalController(db)
+		withdrawals.POST("/", withdrawCtrl.CreateWithdrawal)
+		withdrawals.GET("/", withdrawCtrl.GetAllWithdrawals)
+		withdrawals.PUT("/approve/:id", withdrawCtrl.ApproveWithdrawal)
+		// withdrawals.GET("/:id", drawingCtrl.GetDrawingByID)
+		// withdrawals.DELETE("/:id", drawingCtrl.DeleteDrawing)
+	}
 
 	return router
 
