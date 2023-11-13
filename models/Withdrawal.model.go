@@ -10,11 +10,3 @@ type Withdrawal struct {
 	IsApproved          bool
 	WithdrawalMaterials []WithdrawalMaterial
 }
-
-type WithdrawalMaterial struct {
-	gorm.Model
-	WithdrawalID uint
-	MaterialID   uint
-	Quantity     int64
-	Material     Material
-}

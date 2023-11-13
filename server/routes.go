@@ -71,6 +71,26 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		// withdrawals.DELETE("/:id", drawingCtrl.DeleteDrawing)
 	}
 
+	pr := router.Group("pr")
+	{
+		ctrl := controllers.NewPurchaseRequisitionController(db)
+		pr.POST("/", ctrl.CreatePurchaseRequisition)
+		pr.GET("/", ctrl.GetAllPurchaseRequisition)
+		pr.GET("/:id", ctrl.GetAllPurchaseRequisition)
+		pr.PUT("/:id", ctrl.UpdatePurchaseRequisition)
+		pr.DELETE("/:id", ctrl.DeletePurchaseRequisition)
+	}
+
+	projects := router.Group("projects")
+	{
+		ctrl := controllers.NewProjectController(db)
+		projects.POST("/", ctrl.CreateProject)
+		projects.GET("/", ctrl.GetAllProjects)
+		projects.GET("/:id", ctrl.GetProject)
+		projects.PUT("/:id", ctrl.UpdateProject)
+		projects.DELETE("/:id", ctrl.DeleteProject)
+	}
+
 	return router
 
 }
