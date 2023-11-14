@@ -91,6 +91,16 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		projects.DELETE("/:id", ctrl.DeleteProject)
 	}
 
+	receipts := router.Group("receipts")
+	{
+		ctrl := controllers.NewReceipt(db)
+		receipts.POST("/", ctrl.CreateReceipt)
+		receipts.GET("/", ctrl.GetAllReceipts)
+		receipts.GET("/:id", ctrl.GetReceipt)
+		receipts.PUT("/:id", ctrl.UpdateReceipt)
+		receipts.DELETE("/:id", ctrl.DeleteReceipt)
+	}
+
 	return router
 
 }
