@@ -3,8 +3,10 @@ package server
 import (
 	"daijai/controllers"
 	"daijai/docs"
+	"daijai/middlewares"
 	"net/http"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	ginSwagger "github.com/swaggo/gin-swagger"   // gin-swagger middleware
 	"github.com/swaggo/gin-swagger/swaggerFiles" // swagger embed files
@@ -12,9 +14,16 @@ import (
 )
 
 func SetupRouter(db *gorm.DB) *gin.Engine {
-	router := gin.New()
+	router := gin.Default()
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000"},
+		AllowMethods:     []string{http.MethodPost, http.MethodOptions, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodGet},
+		AllowHeaders:     []string{"Origin", "Authorization", "Content-Type"},
+		ExposeHeaders:    []string{"Content-Length", "*"},
+		AllowCredentials: true,
+	}))
 
 	//Routes for healthcheck of api server
 	healthcheck := router.Group("health")
@@ -44,8 +53,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	materials := router.Group("materials")
 	{
 		materialController := controllers.NewMaterialController(db)
-		materials.POST("/", materialController.CreateMaterial)
-		materials.GET("/", materialController.GetMaterials)
+		materials.POST("", materialController.CreateMaterial)
+		materials.GET("", materialController.GetMaterials)
 		materials.GET("/:id", materialController.GetMaterialByID)
 		materials.PUT("/:id", materialController.UpdateMaterial)
 		materials.DELETE("/:id", materialController.DeleteMaterial)
@@ -54,8 +63,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	drawings := router.Group("drawings")
 	{
 		drawingCtrl := controllers.NewDrawingController(db)
-		drawings.POST("/", drawingCtrl.CreateDrawing)
-		drawings.GET("/", drawingCtrl.GetDrawings)
+		drawings.POST("", drawingCtrl.CreateDrawing)
+		drawings.GET("", drawingCtrl.GetDrawings)
 		drawings.GET("/:id", drawingCtrl.GetDrawingByID)
 		// drawings.PUT("/:id", drawingCtrl.UpdateDrawing)
 		drawings.DELETE("/:id", drawingCtrl.DeleteDrawing)
@@ -64,8 +73,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	withdrawals := router.Group("withdrawals")
 	{
 		withdrawCtrl := controllers.NewWithdrawalController(db)
-		withdrawals.POST("/", withdrawCtrl.CreateWithdrawal)
-		withdrawals.GET("/", withdrawCtrl.GetAllWithdrawals)
+		withdrawals.POST("", withdrawCtrl.CreateWithdrawal)
+		withdrawals.GET("", withdrawCtrl.GetAllWithdrawals)
 		withdrawals.PUT("/approve/:id", withdrawCtrl.ApproveWithdrawal)
 		// withdrawals.GET("/:id", drawingCtrl.GetDrawingByID)
 		// withdrawals.DELETE("/:id", drawingCtrl.DeleteDrawing)
@@ -74,8 +83,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	pr := router.Group("pr")
 	{
 		ctrl := controllers.NewPurchaseRequisitionController(db)
-		pr.POST("/", ctrl.CreatePurchaseRequisition)
-		pr.GET("/", ctrl.GetAllPurchaseRequisition)
+		pr.POST("", ctrl.CreatePurchaseRequisition)
+		pr.GET("", ctrl.GetAllPurchaseRequisition)
 		pr.GET("/:id", ctrl.GetAllPurchaseRequisition)
 		pr.PUT("/:id", ctrl.UpdatePurchaseRequisition)
 		pr.DELETE("/:id", ctrl.DeletePurchaseRequisition)
@@ -83,9 +92,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 
 	projects := router.Group("projects")
 	{
+		projects.Use(middlewares.AuthMiddleware("technician", "admin", "user"))
 		ctrl := controllers.NewProjectController(db)
-		projects.POST("/", ctrl.CreateProject)
-		projects.GET("/", ctrl.GetAllProjects)
+		projects.POST("", ctrl.CreateProject)
+		projects.GET("", ctrl.GetAllProjects)
 		projects.GET("/:id", ctrl.GetProject)
 		projects.PUT("/:id", ctrl.UpdateProject)
 		projects.DELETE("/:id", ctrl.DeleteProject)
@@ -94,11 +104,29 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	receipts := router.Group("receipts")
 	{
 		ctrl := controllers.NewReceipt(db)
-		receipts.POST("/", ctrl.CreateReceipt)
-		receipts.GET("/", ctrl.GetAllReceipts)
+		receipts.POST("", ctrl.CreateReceipt)
+		receipts.GET("", ctrl.GetAllReceipts)
 		receipts.GET("/:id", ctrl.GetReceipt)
 		receipts.PUT("/:id", ctrl.UpdateReceipt)
 		receipts.DELETE("/:id", ctrl.DeleteReceipt)
+	}
+
+	users := router.Group("users")
+	{
+		userCtrl := controllers.NewUser(db)
+		users.POST("", userCtrl.CreateUser)
+		users.GET("", userCtrl.GetAllUsers)
+		users.GET("/:id", userCtrl.GetUser)
+		users.PUT("/:id", userCtrl.UpdateUser)
+		users.DELETE("/:id", userCtrl.DeleteUser)
+	}
+
+	auth := router.Group("/auth")
+	{
+		authCtrl := controllers.NewAuth(db)
+		auth.POST("/register", authCtrl.Register)
+		auth.POST("/login", authCtrl.Login)
+		auth.POST("/logout", authCtrl.Logout)
 	}
 
 	return router

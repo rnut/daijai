@@ -87,6 +87,7 @@ func (mc *MaterialController) UpdateMaterial(c *gin.Context) {
 	}
 
 	// Update only the fields you want to allow being updated.
+	existingMaterial.Slug = updatedMaterial.Slug
 	existingMaterial.Title = updatedMaterial.Title
 	existingMaterial.Subtitle = updatedMaterial.Subtitle
 	existingMaterial.Price = updatedMaterial.Price

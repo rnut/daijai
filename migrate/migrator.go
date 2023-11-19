@@ -12,6 +12,7 @@ func init() {
 func main() {
 	config.ConnectDB()
 
+	config.DB.Migrator().DropTable(&models.User{})
 	config.DB.Migrator().DropTable(&models.Project{})
 	config.DB.Migrator().DropTable(&models.Material{})
 	config.DB.Migrator().DropTable(&models.Drawing{})
@@ -24,6 +25,7 @@ func main() {
 	config.DB.Migrator().DropTable(&models.Purchase{})
 	config.DB.Migrator().DropTable(&models.PurchaseMaterial{})
 
+	config.DB.AutoMigrate(&models.User{})
 	config.DB.AutoMigrate(&models.Project{})
 	config.DB.AutoMigrate(&models.Material{})
 	config.DB.AutoMigrate(&models.Drawing{})
