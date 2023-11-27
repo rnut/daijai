@@ -50,6 +50,16 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		c.Redirect(http.StatusMovedPermanently, "/swagger/index.html")
 	})
 
+	categories := router.Group("categories")
+	{
+		categoryController := controllers.NewCategoryController(db)
+		categories.POST("", categoryController.CreateCategory)
+		categories.GET("", categoryController.GetCategories)
+		categories.GET("/:id", categoryController.GetCategoryByID)
+		categories.PUT("/:id", categoryController.UpdateCategory)
+		categories.DELETE("/:id", categoryController.DeleteCategory)
+	}
+
 	materials := router.Group("materials")
 	{
 		materialController := controllers.NewMaterialController(db)
@@ -121,7 +131,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		users.DELETE("/:id", userCtrl.DeleteUser)
 	}
 
-	auth := router.Group("/auth")
+	auth := router.Group("auth")
 	{
 		authCtrl := controllers.NewAuth(db)
 		auth.POST("/register", authCtrl.Register)

@@ -34,6 +34,11 @@ func (mc *MaterialController) CreateMaterial(c *gin.Context) {
 		return
 	}
 
+	if err := mc.DB.Preload("Category").First(&material, material.ID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Material Category"})
+		return
+	}
+
 	c.JSON(http.StatusCreated, material)
 }
 

@@ -14,6 +14,7 @@ func main() {
 
 	config.DB.Migrator().DropTable(&models.User{})
 	config.DB.Migrator().DropTable(&models.Project{})
+	config.DB.Migrator().DropTable(&models.Category{})
 	config.DB.Migrator().DropTable(&models.Material{})
 	config.DB.Migrator().DropTable(&models.Drawing{})
 	config.DB.Migrator().DropTable(&models.Bomb{})
@@ -27,6 +28,7 @@ func main() {
 
 	config.DB.AutoMigrate(&models.User{})
 	config.DB.AutoMigrate(&models.Project{})
+	config.DB.AutoMigrate(&models.Category{})
 	config.DB.AutoMigrate(&models.Material{})
 	config.DB.AutoMigrate(&models.Drawing{})
 	config.DB.AutoMigrate(&models.Bomb{})

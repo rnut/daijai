@@ -14,4 +14,6 @@ type Material struct {
 	Supplier         string
 	Min              int64
 	Max              int64
+	CategoryID       uint
+	Category         Category
 }
