@@ -21,13 +21,104 @@ func NewMaterialController(db *gorm.DB) *MaterialController {
 }
 
 // CreateMaterial handles the creation of a new material.
-func (mc *MaterialController) CreateMaterial(c *gin.Context) {
+func (mc *MaterialController) CreateMaterial2(c *gin.Context) {
 	var material models.Material
 
 	if err := c.ShouldBindJSON(&material); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	if err := mc.DB.Create(&material).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create material"})
+		return
+	}
+
+	if err := mc.DB.Preload("Category").First(&material, material.ID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Material Category"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, material)
+}
+
+func (mc *MaterialController) CreateMaterial(c *gin.Context) {
+	var material models.Material
+	err := c.Request.ParseMultipartForm(10 << 20) // 10 MB limit
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get form values
+	cID, err := strconv.ParseUint(c.Request.FormValue("CategoryID"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid CategoryID"})
+		return
+	}
+	material.CategoryID = uint(cID)
+
+	material.Slug = c.Request.FormValue("Slug")
+	material.Title = c.Request.FormValue("Title")
+
+	material.Subtitle = c.Request.FormValue("Subtitle")
+	price, err := strconv.ParseInt(c.Request.FormValue("Price"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Price"})
+		return
+	}
+	material.Price = price
+
+	qty, err := strconv.ParseInt(c.Request.FormValue("Quantity"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Quantity"})
+		return
+	}
+	material.Quantity = qty
+
+	iuQt, err := strconv.ParseInt(c.Request.FormValue("InUseQuantity"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid InUseQuantity"})
+		return
+	}
+	material.InUseQuantity = iuQt
+
+	icQt, err := strconv.ParseInt(c.Request.FormValue("InUseQuantity"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid IncomingQuantity"})
+		return
+	}
+	material.IncomingQuantity = icQt
+
+	min, err := strconv.ParseInt(c.Request.FormValue("Min"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Min"})
+		return
+	}
+	material.Min = min
+
+	max, err := strconv.ParseInt(c.Request.FormValue("Max"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Max"})
+		return
+	}
+	material.Max = max
+	material.Supplier = c.Request.FormValue("Supplier")
+
+	_, header, err := c.Request.FormFile("image")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Image upload failed"})
+		return
+	}
+	// Save uploaded image
+	path := "/materials/" + material.Slug + ".jpg"
+	filePath := "./public" + path
+	if err := c.SaveUploadedFile(header, filePath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save image"})
+		return
+	}
+
+	material.ImagePath = path
 
 	if err := mc.DB.Create(&material).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create material"})

@@ -26,7 +26,11 @@ func GenerateToken(user models.User) (string, error) {
 }
 
 func TokenValid(c *gin.Context) error {
-	tokenString := ExtractToken(c)
+	var tokenString string
+	if err := ExtractToken(c, &tokenString); err != nil {
+		log.Println("tokenString")
+		return fmt.Errorf("unexpected token: %v", err)
+	}
 	_, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -39,17 +43,30 @@ func TokenValid(c *gin.Context) error {
 	return nil
 }
 
-func ExtractToken(c *gin.Context) string {
+func ExtractToken(c *gin.Context, token *string) error {
 	authHeader := c.Request.Header.Get("Authorization")
 	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
-		return ""
+	ps := len(parts)
+	switch ps {
+	case 0, 1:
+		return fmt.Errorf("not enough Bearer")
+	case 2:
+		if parts[0] != "Bearer" {
+			return fmt.Errorf("non Bearer")
+		} else {
+			*token += parts[1]
+			return nil
+		}
+	default:
+		return fmt.Errorf("too many Bearer")
 	}
-	return parts[1]
 }
 
 func ExtractTokenID(c *gin.Context) (uint, error) {
-	tokenString := ExtractToken(c)
+	var tokenString string
+	if err := ExtractToken(c, &tokenString); err != nil {
+		return 0, fmt.Errorf("unexpected token")
+	}
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])

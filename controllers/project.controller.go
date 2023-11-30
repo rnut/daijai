@@ -38,15 +38,15 @@ func (pc *ProjectController) CreateProject(c *gin.Context) {
 }
 
 func (pc *ProjectController) GetAllProjects(c *gin.Context) {
-	uid, err := pc.GetUserID(c)
-	if err != nil {
-		return
-	} else {
-		c.JSON(http.StatusOK, gin.H{
-			"uid": uid,
-		})
-		return
-	}
+	// uid, err := pc.GetUserID(c)
+	// if err != nil {
+	// 	return
+	// } else {
+	// 	c.JSON(http.StatusOK, gin.H{
+	// 		"uid": uid,
+	// 	})
+	// 	return
+	// }
 
 	var projects []models.Project
 	if err := pc.DB.Find(&projects).Error; err != nil {

@@ -2,9 +2,13 @@ package controllers
 
 import (
 	"daijai/models"
+	"errors"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgconn"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -27,8 +31,23 @@ func (uc *UserController) CreateUser(c *gin.Context) {
 		return
 	}
 
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		return
+	}
+
+	user.Password = string(hashedPassword)
 	if err := uc.DB.Create(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+		log.Println(err.Error())
+		log.Println("-----")
+		log.Println(gorm.ErrDuplicatedKey.Error())
+		var duplicateEntryError = &pgconn.PgError{Code: "23505"}
+		if errors.As(err, &duplicateEntryError) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Duplicate Username"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+		}
 		return
 	}
 
@@ -38,13 +57,17 @@ func (uc *UserController) CreateUser(c *gin.Context) {
 // GetAllUsers gets all users.
 func (uc *UserController) GetAllUsers(c *gin.Context) {
 	var users []models.User
-
 	if err := uc.DB.Find(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users"})
 		return
 	}
 
-	c.JSON(http.StatusOK, users)
+	var members []models.Member
+	for _, s := range users {
+		members = append(members, s.UserToMember())
+	}
+
+	c.JSON(http.StatusOK, members)
 }
 
 // Get a user by ID
@@ -86,6 +109,41 @@ func (uc *UserController) UpdateUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "User updated successfully", "user": user})
+}
+
+func (uc *UserController) ResetPassword(c *gin.Context) {
+	var user models.User
+
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	id := c.Param("id")
+	var qUser models.User
+	if err := uc.DB.First(&qUser, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	if qUser.ID != user.ID || qUser.Username != user.Username {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User data not match"})
+		return
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		return
+	}
+
+	user.Password = string(hashedPassword)
+	if err := uc.DB.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Reset user password successfully"})
 }
 
 // Delete a user by ID

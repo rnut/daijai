@@ -3,7 +3,6 @@ package server
 import (
 	"daijai/controllers"
 	"daijai/docs"
-	"daijai/middlewares"
 	"net/http"
 
 	"github.com/gin-contrib/cors"
@@ -87,7 +86,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		withdrawals.GET("", withdrawCtrl.GetAllWithdrawals)
 		withdrawals.PUT("/approve/:id", withdrawCtrl.ApproveWithdrawal)
 		// withdrawals.GET("/:id", drawingCtrl.GetDrawingByID)
-		// withdrawals.DELETE("/:id", drawingCtrl.DeleteDrawing)
+		withdrawals.DELETE("/:id", withdrawCtrl.DeleteWithdraw)
 	}
 
 	pr := router.Group("pr")
@@ -102,7 +101,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 
 	projects := router.Group("projects")
 	{
-		projects.Use(middlewares.AuthMiddleware("technician", "admin", "user"))
+		// projects.Use(middlewares.AuthMiddleware("technician", "admin", "user"))
 		ctrl := controllers.NewProjectController(db)
 		projects.POST("", ctrl.CreateProject)
 		projects.GET("", ctrl.GetAllProjects)
@@ -125,6 +124,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	{
 		userCtrl := controllers.NewUser(db)
 		users.POST("", userCtrl.CreateUser)
+		users.PUT("/reset/:id", userCtrl.ResetPassword)
 		users.GET("", userCtrl.GetAllUsers)
 		users.GET("/:id", userCtrl.GetUser)
 		users.PUT("/:id", userCtrl.UpdateUser)
@@ -137,7 +137,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		auth.POST("/register", authCtrl.Register)
 		auth.POST("/login", authCtrl.Login)
 		auth.POST("/logout", authCtrl.Logout)
+		auth.GET("/session", authCtrl.Session)
 	}
+
+	router.Static("/image", "./public")
 
 	return router
 

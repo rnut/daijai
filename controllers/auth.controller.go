@@ -3,6 +3,7 @@ package controllers
 import (
 	"daijai/models"
 	"daijai/token"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -12,12 +13,27 @@ import (
 
 type AuthController struct {
 	DB *gorm.DB
+	BaseController
 }
 
 func NewAuth(db *gorm.DB) *AuthController {
 	return &AuthController{
 		DB: db,
 	}
+}
+
+func (uc *AuthController) Session(c *gin.Context) {
+	var uid uint
+	if err := uc.GetUserID(c, &uid); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var member models.Member
+	if err := uc.getUserDataByUserID(uc.DB, uid, &member); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, member)
 }
 
 // Register creates a new user.
@@ -28,7 +44,6 @@ func (uc *AuthController) Register(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
@@ -58,11 +73,12 @@ func (uc *AuthController) Login(c *gin.Context) {
 
 	var user models.User
 	if err := uc.DB.Where("username = ?", loginData.Username).First(&user).Error; err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		log.Println(err)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
 		return
 	}
-
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginData.Password)); err != nil {
+		log.Println(err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}
@@ -73,7 +89,16 @@ func (uc *AuthController) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": tokenString})
+	// tk := models.Tokens{
+	// 	AccessToken: tokenString,
+	// }
+	// data := models.ResponseToken{
+	// 	Tokens: models.Tokens{
+	// 	},
+	// }
+	c.JSON(http.StatusOK, gin.H{
+		"token": tokenString,
+	})
 }
 
 // Logout revokes the user's JWT token (optional depending on your requirements).

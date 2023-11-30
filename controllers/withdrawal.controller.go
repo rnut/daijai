@@ -25,7 +25,7 @@ func NewWithdrawalController(db *gorm.DB) *WithdrawalController {
 func (wc *WithdrawalController) GetAllWithdrawals(c *gin.Context) {
 	var withdrawals []models.Withdrawal
 
-	if err := wc.DB.Preload("WithdrawalMaterials").Preload("WithdrawalMaterials.Material").Find(&withdrawals).Error; err != nil {
+	if err := wc.DB.Preload("Project").Preload("WithdrawalMaterials").Preload("WithdrawalMaterials.Material").Preload("WithdrawalMaterials.Material.Category").Find(&withdrawals).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve withdrawals"})
 		return
 	}
@@ -145,4 +145,20 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Withdrawal approved successfully", "withdrawal": withdrawal})
+}
+
+// DeleteMaterial deletes a specific material by ID.
+func (mc *WithdrawalController) DeleteWithdraw(c *gin.Context) {
+	materialID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid material ID"})
+		return
+	}
+
+	if err := mc.DB.Delete(&models.Withdrawal{}, materialID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete withdrawal"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Withdrawal deleted successfully"})
 }
