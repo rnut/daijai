@@ -4,6 +4,7 @@ import "gorm.io/gorm"
 
 type Bomb struct {
 	gorm.Model
+	ID         uint
 	Price      int64 `form:"Price"`
 	Quantity   int64 `form:"Quantity"`
 	DrawingID  uint  `form:"DrawingID"`

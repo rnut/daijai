@@ -75,7 +75,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		drawings.POST("", drawingCtrl.CreateDrawing)
 		drawings.GET("", drawingCtrl.GetDrawings)
 		drawings.GET("/:id", drawingCtrl.GetDrawingByID)
-		// drawings.PUT("/:id", drawingCtrl.UpdateDrawing)
+		drawings.PUT("/:id", drawingCtrl.UpdateDrawing)
 		drawings.DELETE("/:id", drawingCtrl.DeleteDrawing)
 	}
 

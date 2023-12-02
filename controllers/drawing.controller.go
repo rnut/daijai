@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"daijai/models"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -110,7 +111,7 @@ func (dc *DrawingController) CreateDrawing(c *gin.Context) {
 func (dc *DrawingController) GetDrawings(c *gin.Context) {
 	var drawings []models.Drawing
 
-	if err := dc.DB.Preload("Bombs").Preload("Bombs.Material").Preload("CreatedBy").Find(&drawings).Error; err != nil {
+	if err := dc.DB.Preload("Bombs.Material.Category").Preload("CreatedBy").Find(&drawings).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve drawings"})
 		return
 	}
@@ -135,7 +136,118 @@ func (dc *DrawingController) GetDrawingByID(c *gin.Context) {
 	c.JSON(http.StatusOK, drawing)
 }
 
-// / NOT ALLOW FOR UPDATE
+func (dc *DrawingController) UpdateDrawing(c *gin.Context) {
+	drawingID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid drawing ID"})
+		return
+	}
+	var uid uint
+	if err := dc.GetUserID(c, &uid); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var member models.Member
+	if err := dc.getUserDataByUserID(dc.DB, uid, &member); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	e := c.Request.ParseMultipartForm(10 << 20) // 10 MB limit
+	if e != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var drw models.Drawing
+	if err := dc.DB.Preload("Bombs").First(&drw, drawingID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Drawing not found"})
+		return
+	}
+
+	// UPDATE Drawing fields
+	drw.CreatedByID = member.ID
+	drw.CreatedBy = member
+	drw.Slug = c.Request.FormValue("Slug")
+	drw.PartNumber = c.Request.FormValue("PartNumber")
+	pQty, err := strconv.ParseInt(c.Request.FormValue("ProducedQuantity"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ProducedQuantity"})
+		return
+	}
+	drw.ProducedQuantity = pQty
+
+	// Save uploaded image
+	file, header, err := c.Request.FormFile("image")
+	log.Println("file")
+	log.Println(file)
+	log.Println("---file--")
+	log.Println("err")
+	log.Println(err)
+	log.Println("---err--")
+	if file != nil && err == nil {
+		log.Println("Has image")
+		path := "/drawings/" + drw.Slug + ".jpg"
+		filePath := "./public" + path
+		if err := c.SaveUploadedFile(header, filePath); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ProducedQuantity"})
+			return
+		}
+
+		drw.ImagePath = path
+	}
+
+	if err := dc.DB.Transaction(func(tx *gorm.DB) error {
+
+		// DELETE ALL BOMBS
+		for _, v := range drw.Bombs {
+			if err := dc.DB.Delete(&models.Bomb{}, v.ID).Error; err != nil {
+				return err
+			}
+		}
+
+		// CREATE NEW BOMBS
+		var bombs []models.Bomb
+		mIDs := c.PostFormArray("Bombs.MaterialID")
+		qts := c.PostFormArray("Bombs.Quantity")
+		prices := c.PostFormArray("Bombs.Price")
+
+		for i := 0; i < len(mIDs); i++ {
+			mID, err := strconv.ParseUint(mIDs[i], 10, 64)
+			if err != nil {
+				break
+			}
+			qty, err := strconv.ParseInt(qts[i], 10, 64)
+			if err != nil {
+				break
+			}
+			price, err := strconv.ParseInt(prices[i], 10, 64)
+			if err != nil {
+				break
+			}
+			bomb := models.Bomb{
+				DrawingID:  drw.ID,
+				Quantity:   qty,
+				MaterialID: uint(mID),
+				Price:      price,
+			}
+			if err := tx.Save(&bomb).Error; err != nil {
+				return err
+			}
+			bombs = append(bombs, bomb)
+		}
+		drw.Bombs = bombs
+		if err := tx.Save(&drw).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		log.Println(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create drawing"})
+		return
+	}
+	c.JSON(http.StatusCreated, drw)
+}
+
 // UpdateDrawing updates a specific drawing by ID.
 // func (dc *DrawingController) UpdateDrawing(c *gin.Context) {
 // 	drawingID, err := strconv.ParseUint(c.Param("id"), 10, 64)
