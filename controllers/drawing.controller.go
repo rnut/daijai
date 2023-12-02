@@ -13,6 +13,7 @@ import (
 // DrawingController handles CRUD operations for the Drawing model.
 type DrawingController struct {
 	DB *gorm.DB
+	BaseController
 }
 
 // NewDrawingController creates a new instance of DrawingController.
@@ -23,13 +24,24 @@ func NewDrawingController(db *gorm.DB) *DrawingController {
 }
 
 func (dc *DrawingController) CreateDrawing(c *gin.Context) {
+	var uid uint
+	if err := dc.GetUserID(c, &uid); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var member models.Member
+	if err := dc.getUserDataByUserID(dc.DB, uid, &member); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 	var drw models.Drawing
 	err := c.Request.ParseMultipartForm(10 << 20) // 10 MB limit
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
+	drw.CreatedByID = member.ID
+	drw.CreatedBy = member
 	drw.Slug = c.Request.FormValue("Slug")
 	drw.PartNumber = c.Request.FormValue("PartNumber")
 	pQty, err := strconv.ParseInt(c.Request.FormValue("ProducedQuantity"), 10, 64)
@@ -58,6 +70,7 @@ func (dc *DrawingController) CreateDrawing(c *gin.Context) {
 		var bombs []models.Bomb
 		mIDs := c.PostFormArray("Bombs.MaterialID")
 		qts := c.PostFormArray("Bombs.Quantity")
+		prices := c.PostFormArray("Bombs.Price")
 
 		for i := 0; i < len(mIDs); i++ {
 			mID, err := strconv.ParseUint(mIDs[i], 10, 64)
@@ -68,10 +81,15 @@ func (dc *DrawingController) CreateDrawing(c *gin.Context) {
 			if err != nil {
 				break
 			}
+			price, err := strconv.ParseInt(prices[i], 10, 64)
+			if err != nil {
+				break
+			}
 			b := models.Bomb{
 				DrawingID:  drw.ID,
 				Quantity:   qty,
 				MaterialID: uint(mID),
+				Price:      price,
 			}
 			if err := tx.Save(&b).Error; err != nil {
 				return err
@@ -88,64 +106,11 @@ func (dc *DrawingController) CreateDrawing(c *gin.Context) {
 	c.JSON(http.StatusCreated, drw)
 }
 
-// CreateDrawing handles the creation of a new drawing.
-// CreateDrawing handles the creation of a new drawing along with associated bombs.
-func (dc *DrawingController) CreateDrawing2(c *gin.Context) {
-	var request struct {
-		Drawing models.Drawing
-		Bombs   []models.Bomb
-	}
-
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Create the drawing with associated bombs
-	if err := dc.DB.Transaction(func(tx *gorm.DB) error {
-		// Create the drawing
-		if err := tx.Create(&request.Drawing).Error; err != nil {
-			return err
-		}
-
-		// Associate the bombs with the drawing
-		for i := range request.Bombs {
-			request.Bombs[i].DrawingID = request.Drawing.ID
-			if err := tx.Create(&request.Bombs[i]).Error; err != nil {
-				return err
-			}
-
-			// Update the associated material's quantity
-			material := request.Bombs[i].Material
-			if materialID := request.Bombs[i].MaterialID; materialID != 0 {
-				// Retrieve the material record
-				if err := tx.First(&material, materialID).Error; err != nil {
-					return err
-				}
-
-				// Update the material's quantity
-				material.InUseQuantity += request.Bombs[i].Quantity
-				material.Quantity -= request.Bombs[i].Quantity
-				if err := tx.Save(&material).Error; err != nil {
-					return err
-				}
-			}
-		}
-
-		return nil
-	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create drawing"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{"message": "Drawing created successfully", "drawing": request.Drawing, "bombs": request.Bombs})
-}
-
 // GetDrawings returns a list of all drawings.
 func (dc *DrawingController) GetDrawings(c *gin.Context) {
 	var drawings []models.Drawing
 
-	if err := dc.DB.Preload("Bombs").Preload("Bombs.Material").Find(&drawings).Error; err != nil {
+	if err := dc.DB.Preload("Bombs").Preload("Bombs.Material").Preload("CreatedBy").Find(&drawings).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve drawings"})
 		return
 	}
@@ -162,7 +127,7 @@ func (dc *DrawingController) GetDrawingByID(c *gin.Context) {
 	}
 
 	var drawing models.Drawing
-	if err := dc.DB.Preload("Bombs").Preload("Bombs.Material").First(&drawing, drawingID).Error; err != nil {
+	if err := dc.DB.Preload("Bombs.Material.Category").Preload("CreatedBy").First(&drawing, drawingID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Drawing not found"})
 		return
 	}

@@ -35,3 +35,7 @@ func (u *User) UserToMember() Member {
 		Role:     u.Role,
 	}
 }
+
+func (Member) TableName() string {
+	return "users"
+}
