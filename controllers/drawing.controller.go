@@ -22,9 +22,75 @@ func NewDrawingController(db *gorm.DB) *DrawingController {
 	}
 }
 
+func (dc *DrawingController) CreateDrawing(c *gin.Context) {
+	var drw models.Drawing
+	err := c.Request.ParseMultipartForm(10 << 20) // 10 MB limit
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	drw.Slug = c.Request.FormValue("Slug")
+	drw.PartNumber = c.Request.FormValue("PartNumber")
+	pQty, err := strconv.ParseInt(c.Request.FormValue("ProducedQuantity"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ProducedQuantity"})
+		return
+	}
+	drw.ProducedQuantity = pQty
+
+	if err := dc.DB.Transaction(func(tx *gorm.DB) error {
+		// Save uploaded image
+		_, header, err := c.Request.FormFile("image")
+		if err != nil {
+			return err
+		}
+		path := "/drawings/" + drw.Slug + ".jpg"
+		filePath := "./public" + path
+		if err := c.SaveUploadedFile(header, filePath); err != nil {
+			return err
+		}
+
+		drw.ImagePath = path
+		if err := tx.Create(&drw).Error; err != nil {
+			return err
+		}
+		var bombs []models.Bomb
+		mIDs := c.PostFormArray("Bombs.MaterialID")
+		qts := c.PostFormArray("Bombs.Quantity")
+
+		for i := 0; i < len(mIDs); i++ {
+			mID, err := strconv.ParseUint(mIDs[i], 10, 64)
+			if err != nil {
+				break
+			}
+			qty, err := strconv.ParseInt(qts[i], 10, 64)
+			if err != nil {
+				break
+			}
+			b := models.Bomb{
+				DrawingID:  drw.ID,
+				Quantity:   qty,
+				MaterialID: uint(mID),
+			}
+			if err := tx.Save(&b).Error; err != nil {
+				return err
+			}
+			bombs = append(bombs, b)
+		}
+		drw.Bombs = bombs
+
+		return nil
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create drawing"})
+		return
+	}
+	c.JSON(http.StatusCreated, drw)
+}
+
 // CreateDrawing handles the creation of a new drawing.
 // CreateDrawing handles the creation of a new drawing along with associated bombs.
-func (dc *DrawingController) CreateDrawing(c *gin.Context) {
+func (dc *DrawingController) CreateDrawing2(c *gin.Context) {
 	var request struct {
 		Drawing models.Drawing
 		Bombs   []models.Bomb

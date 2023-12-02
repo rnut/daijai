@@ -13,7 +13,8 @@ import (
 
 func AuthMiddleware(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tokenString := token.ExtractToken(c)
+		var tokenString string
+		token.ExtractToken(c, &tokenString)
 		if tokenString == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing authorization header"})
 			c.Abort()

@@ -20,28 +20,6 @@ func NewMaterialController(db *gorm.DB) *MaterialController {
 	}
 }
 
-// CreateMaterial handles the creation of a new material.
-func (mc *MaterialController) CreateMaterial2(c *gin.Context) {
-	var material models.Material
-
-	if err := c.ShouldBindJSON(&material); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if err := mc.DB.Create(&material).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create material"})
-		return
-	}
-
-	if err := mc.DB.Preload("Category").First(&material, material.ID).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Material Category"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, material)
-}
-
 func (mc *MaterialController) CreateMaterial(c *gin.Context) {
 	var material models.Material
 	err := c.Request.ParseMultipartForm(10 << 20) // 10 MB limit

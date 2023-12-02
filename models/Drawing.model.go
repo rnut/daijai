@@ -4,8 +4,9 @@ import "gorm.io/gorm"
 
 type Drawing struct {
 	gorm.Model
-	Slug             string
-	PartNumber       string
-	ProducedQuantity int64
-	Bombs            []Bomb
+	ImagePath        string
+	Slug             string `form:"Slug"`
+	PartNumber       string `form:"PartNumber"`
+	ProducedQuantity int64  `form:"ProducedQuantity"`
+	Bombs            []Bomb `form:"Bombs"`
 }
