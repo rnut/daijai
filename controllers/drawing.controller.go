@@ -178,21 +178,13 @@ func (dc *DrawingController) UpdateDrawing(c *gin.Context) {
 
 	// Save uploaded image
 	file, header, err := c.Request.FormFile("image")
-	log.Println("file")
-	log.Println(file)
-	log.Println("---file--")
-	log.Println("err")
-	log.Println(err)
-	log.Println("---err--")
 	if file != nil && err == nil {
-		log.Println("Has image")
 		path := "/drawings/" + drw.Slug + ".jpg"
 		filePath := "./public" + path
 		if err := c.SaveUploadedFile(header, filePath); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ProducedQuantity"})
 			return
 		}
-
 		drw.ImagePath = path
 	}
 

@@ -22,13 +22,24 @@ func NewReceipt(db *gorm.DB) *ReceiptController {
 
 // CreateReceipt creates a new Receipt entry.
 func (rc *ReceiptController) CreateReceipt(c *gin.Context) {
-	var request models.Receipt
+	var uid uint
+	if err := rc.GetUserID(c, &uid); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var member models.Member
+	if err := rc.getUserDataByUserID(rc.DB, uid, &member); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
+	var request models.Receipt
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	request.CreatedByID = member.ID
 	if err := rc.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&request).Error; err != nil {
 			return err
@@ -72,7 +83,11 @@ func (rc *ReceiptController) CreateReceipt(c *gin.Context) {
 func (rc *ReceiptController) GetAllReceipts(c *gin.Context) {
 	var receipts []models.Receipt
 
-	if err := rc.DB.Preload("ReceiptMaterials").Find(&receipts).Error; err != nil {
+	if err := rc.
+		DB.
+		Preload("ReceiptMaterials").
+		Preload("CreatedBy").
+		Find(&receipts).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Receipts"})
 		return
 	}
@@ -85,7 +100,11 @@ func (rc *ReceiptController) GetReceipt(c *gin.Context) {
 	id := c.Param("id")
 
 	var receipt models.Receipt
-	if err := rc.DB.Preload("ReceiptMaterials").First(&receipt, id).Error; err != nil {
+	if err := rc.
+		DB.
+		Preload("ReceiptMaterials.Material.Category").
+		Preload("CreatedBy").
+		First(&receipt, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
 		return
 	}

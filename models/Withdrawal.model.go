@@ -4,12 +4,15 @@ import "gorm.io/gorm"
 
 type Withdrawal struct {
 	gorm.Model
-	ProjectID           *uint
-	DrawingID           *uint
-	WithdrawalUserID    *uint
-	ApprovalUserID      *uint
+	Slug                string `gorm:"unique"`
+	ProjectID           uint
+	Project             Project
+	DrawingID           uint
+	ApprovedByID        *uint
+	ApprovedBy          Member `gorm:"foreignkey:ApprovedByID"`
 	Notes               string
 	IsApproved          bool
 	WithdrawalMaterials []WithdrawalMaterial
-	Project             Project
+	CreatedByID         uint   `gorm:"not null"`
+	CreatedBy           Member `gorm:"foreignkey:CreatedByID"`
 }

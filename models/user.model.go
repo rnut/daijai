@@ -9,14 +9,16 @@ type User struct {
 	Password string
 	FullName string
 	Role     string
+	Tel      string
 }
 
 type Member struct {
 	ID       uint
-	Slug     string
+	Slug     string `gorm:"unique"`
 	Username string `gorm:"unique"`
 	FullName string
 	Role     string
+	Tel      string
 }
 
 type Tokens struct {

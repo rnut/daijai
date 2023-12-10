@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"daijai/models"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -13,6 +14,7 @@ import (
 // WithdrawalController handles CRUD operations for Withdrawal model.
 type WithdrawalController struct {
 	DB *gorm.DB
+	BaseController
 }
 
 // NewWithdrawalController creates a new instance of WithdrawalController.
@@ -22,10 +24,38 @@ func NewWithdrawalController(db *gorm.DB) *WithdrawalController {
 	}
 }
 
+func (wc *WithdrawalController) GetWithdrawalByID(c *gin.Context) {
+	objID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Withdrawal ID"})
+		return
+	}
+
+	var withdrawal models.Withdrawal
+	if err := wc.DB.
+		Preload("Project").
+		Preload("WithdrawalMaterials.Material.Category").
+		Preload("CreatedBy").
+		Preload("ApprovedBy").
+		First(&withdrawal, objID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Withdrawal not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, withdrawal)
+}
+
 func (wc *WithdrawalController) GetAllWithdrawals(c *gin.Context) {
 	var withdrawals []models.Withdrawal
 
-	if err := wc.DB.Preload("Project").Preload("WithdrawalMaterials").Preload("WithdrawalMaterials.Material").Preload("WithdrawalMaterials.Material.Category").Find(&withdrawals).Error; err != nil {
+	if err := wc.DB.
+		Preload("Project").
+		Preload("WithdrawalMaterials").
+		Preload("WithdrawalMaterials.Material").
+		Preload("WithdrawalMaterials.Material.Category").
+		Preload("CreatedBy").
+		Preload("ApprovedBy").
+		Find(&withdrawals).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve withdrawals"})
 		return
 	}
@@ -40,17 +70,28 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 		WithdrawalMaterials []models.WithdrawalMaterial
 	}
 
+	var uid uint
+	if err := wc.GetUserID(c, &uid); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var member models.Member
+	if err := wc.getUserDataByUserID(wc.DB, uid, &member); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	if err := wc.DB.Transaction(func(tx *gorm.DB) error {
+		request.Withdrawal.CreatedByID = member.ID
 		if err := tx.Create(&request.Withdrawal).Error; err != nil {
 			return err
 		}
 
-		// Associate the bombs with the drawing
 		for i := range request.WithdrawalMaterials {
 			request.WithdrawalMaterials[i].WithdrawalID = request.Withdrawal.ID
 			if err := tx.Create(&request.WithdrawalMaterials[i]).Error; err != nil {
@@ -59,14 +100,91 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 		}
 		return nil
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create drawing"})
+		log.Println(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"message": "Withdrawal created successfully", "withdrawal": request.Withdrawal})
 }
 
+func (wc *WithdrawalController) UpdateWithdrawal(c *gin.Context) {
+	var request struct {
+		Withdrawal struct {
+			ProjectID uint
+			Notes     string
+		}
+		WithdrawalMaterials []models.WithdrawalMaterial
+	}
+
+	withdrawalID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid drawing ID"})
+		return
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var withdrawal models.Withdrawal
+	if err := wc.DB.Preload("Project").Preload("WithdrawalMaterials").Preload("WithdrawalMaterials.Material.Category").Preload("CreatedBy").First(&withdrawal, withdrawalID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Withdrawal not found", "id": withdrawalID})
+		return
+	}
+
+	if err := wc.DB.Transaction(func(tx *gorm.DB) error {
+		pID := request.Withdrawal.ProjectID
+		withdrawal.ProjectID = pID
+		withdrawal.Project.ID = pID
+		withdrawal.Notes = request.Withdrawal.Notes
+		if err := tx.Save(&withdrawal).Error; err != nil {
+			return err
+		}
+
+		// DELETE ALL WithdrawalMaterials
+		for _, v := range withdrawal.WithdrawalMaterials {
+			if err := tx.Delete(&models.WithdrawalMaterial{}, v.ID).Error; err != nil {
+				return err
+			}
+		}
+
+		for _, v := range request.WithdrawalMaterials {
+			wm := models.WithdrawalMaterial{
+				WithdrawalID: withdrawal.ID,
+				MaterialID:   v.MaterialID,
+				Quantity:     v.Quantity,
+			}
+			if err := tx.Create(&wm).Error; err != nil {
+				return err
+			}
+			withdrawal.WithdrawalMaterials = append(withdrawal.WithdrawalMaterials, wm)
+		}
+		return nil
+	}); err != nil {
+		log.Println(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Update Withdraw successfully", "withdrawal": withdrawal})
+}
+
 // // ApproveWithdrawal approves a withdrawal transaction and updates the material quantity.
 func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
+	var uid uint
+	if err := wc.GetUserID(c, &uid); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var member models.Member
+	if err := wc.getUserDataByUserID(wc.DB, uid, &member); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if member.Role != "admin" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Permission Denied"})
+		return
+	}
+
 	withdrawalID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid withdrawal ID"})
@@ -74,7 +192,12 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 	}
 
 	var withdrawal models.Withdrawal
-	if err := wc.DB.Preload("WithdrawalMaterials").Preload("WithdrawalMaterials.Material").First(&withdrawal, withdrawalID).Error; err != nil {
+	if err := wc.DB.
+		Preload("Project").
+		Preload("WithdrawalMaterials.Material.Category").
+		Preload("CreatedBy").
+		Preload("ApprovedBy").
+		First(&withdrawal, withdrawalID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Withdrawal not found", "id": withdrawalID})
 		return
 	}
@@ -132,6 +255,8 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 
 	// Mark the withdrawal as approved
 	withdrawal.IsApproved = true
+	withdrawal.ApprovedByID = &uid
+	withdrawal.ApprovedBy = member
 	if err := tx.Save(&withdrawal).Error; err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save approval withdrawal"})

@@ -3,6 +3,7 @@ package server
 import (
 	"daijai/controllers"
 	"daijai/docs"
+	"daijai/middlewares"
 	"net/http"
 
 	"github.com/gin-contrib/cors"
@@ -84,9 +85,12 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		withdrawCtrl := controllers.NewWithdrawalController(db)
 		withdrawals.POST("", withdrawCtrl.CreateWithdrawal)
 		withdrawals.GET("", withdrawCtrl.GetAllWithdrawals)
-		withdrawals.PUT("/approve/:id", withdrawCtrl.ApproveWithdrawal)
-		// withdrawals.GET("/:id", drawingCtrl.GetDrawingByID)
+		withdrawals.PUT("/:id", withdrawCtrl.UpdateWithdrawal)
+		withdrawals.GET("/:id", withdrawCtrl.GetWithdrawalByID)
 		withdrawals.DELETE("/:id", withdrawCtrl.DeleteWithdraw)
+		withdrawals.PUT("/approve/:id",
+			middlewares.AuthMiddleware("admin"),
+			withdrawCtrl.ApproveWithdrawal)
 	}
 
 	pr := router.Group("pr")

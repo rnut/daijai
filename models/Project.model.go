@@ -8,7 +8,7 @@ import (
 
 type Project struct {
 	gorm.Model
-	Slug        string
+	Slug        string `gorm:"unique"`
 	Title       string
 	Subtitle    string
 	Description string
