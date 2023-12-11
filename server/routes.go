@@ -98,7 +98,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		ctrl := controllers.NewPurchaseRequisitionController(db)
 		pr.POST("", ctrl.CreatePurchaseRequisition)
 		pr.GET("", ctrl.GetAllPurchaseRequisition)
-		pr.GET("/:id", ctrl.GetAllPurchaseRequisition)
+		pr.GET("/:id", ctrl.GetPurchaseRequisition)
 		pr.PUT("/:id", ctrl.UpdatePurchaseRequisition)
 		pr.DELETE("/:id", ctrl.DeletePurchaseRequisition)
 	}
