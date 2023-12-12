@@ -4,21 +4,23 @@ import "gorm.io/gorm"
 
 type User struct {
 	gorm.Model
-	Slug     string `gorm:"unique"`
-	Username string `gorm:"unique"`
-	Password string
-	FullName string
-	Role     string
-	Tel      string
+	Slug      string `gorm:"unique" form:"Slug"`
+	Username  string `gorm:"unique" form:"Username"`
+	Password  string `form:"Password"`
+	FullName  string `form:"FullName"`
+	Role      string `form:"Role"`
+	Tel       string `form:"Tel"`
+	ImagePath string
 }
 
 type Member struct {
-	ID       uint
-	Slug     string `gorm:"unique"`
-	Username string `gorm:"unique"`
-	FullName string
-	Role     string
-	Tel      string
+	ID        uint
+	Slug      string `gorm:"unique"`
+	Username  string `gorm:"unique"`
+	FullName  string
+	Role      string
+	Tel       string
+	ImagePath string
 }
 
 type Tokens struct {
@@ -30,11 +32,13 @@ type ResponseToken struct {
 
 func (u *User) UserToMember() Member {
 	return Member{
-		ID:       u.ID,
-		Slug:     u.Slug,
-		Username: u.Username,
-		FullName: u.FullName,
-		Role:     u.Role,
+		ID:        u.ID,
+		Slug:      u.Slug,
+		Username:  u.Username,
+		FullName:  u.FullName,
+		Role:      u.Role,
+		ImagePath: u.ImagePath,
+		Tel:       u.Tel,
 	}
 }
 
