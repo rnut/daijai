@@ -81,13 +81,28 @@ func (rc *ReceiptController) CreateReceipt(c *gin.Context) {
 }
 
 func (rc *ReceiptController) GetAllReceipts(c *gin.Context) {
-	var receipts []models.Receipt
+	var uid uint
+	if err := rc.GetUserID(c, &uid); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var member models.Member
+	if err := rc.getUserDataByUserID(rc.DB, uid, &member); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-	if err := rc.
-		DB.
+	var receipts []models.Receipt
+	q := rc.DB.
 		Preload("ReceiptMaterials").
-		Preload("CreatedBy").
-		Find(&receipts).Error; err != nil {
+		Preload("CreatedBy")
+
+	if member.Role == "admin" {
+		q.Find(&receipts)
+	} else {
+		q.Find(&receipts, "created_by_id = ?", member.ID)
+	}
+	if err := q.Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Receipts"})
 		return
 	}

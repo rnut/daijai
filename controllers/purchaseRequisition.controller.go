@@ -101,17 +101,30 @@ func (prc *PurchaseRequisitionController) GetPurchaseRequisition(c *gin.Context)
 }
 
 func (pc *PurchaseRequisitionController) GetAllPurchaseRequisition(c *gin.Context) {
+	var uid uint
+	if err := pc.GetUserID(c, &uid); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var member models.Member
+	if err := pc.getUserDataByUserID(pc.DB, uid, &member); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 	var ps []models.Purchase
-	if err := pc.
-		DB.
+	q := pc.DB.
 		Preload("PurchaseMaterials.Material.Category").
 		Preload("CreatedBy").
-		Preload("Project").
-		Find(&ps).Error; err != nil {
+		Preload("Project")
+	if member.Role == "admin" {
+		q.Find(&ps)
+	} else {
+		q.Find(&ps, "created_by_id = ?", member.ID)
+	}
+	if err := q.Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve projects"})
 		return
 	}
-
 	c.JSON(http.StatusOK, ps)
 }
 
