@@ -46,16 +46,29 @@ func (wc *WithdrawalController) GetWithdrawalByID(c *gin.Context) {
 }
 
 func (wc *WithdrawalController) GetAllWithdrawals(c *gin.Context) {
+	var uid uint
+	if err := wc.GetUserID(c, &uid); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var member models.Member
+	if err := wc.getUserDataByUserID(wc.DB, uid, &member); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 	var withdrawals []models.Withdrawal
-
-	if err := wc.DB.
+	q := wc.DB.
 		Preload("Project").
-		Preload("WithdrawalMaterials").
-		Preload("WithdrawalMaterials.Material").
 		Preload("WithdrawalMaterials.Material.Category").
 		Preload("CreatedBy").
-		Preload("ApprovedBy").
-		Find(&withdrawals).Error; err != nil {
+		Preload("ApprovedBy")
+	if member.Role == "technician" {
+		q.Find(&withdrawals, "created_by_id = ?", member.ID)
+	} else {
+		q.Find(&withdrawals)
+	}
+
+	if err := q.Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve withdrawals"})
 		return
 	}
