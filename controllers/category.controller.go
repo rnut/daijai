@@ -40,7 +40,9 @@ func (mc *CategoryController) CreateCategory(c *gin.Context) {
 func (mc *CategoryController) GetCategories(c *gin.Context) {
 	var categories []models.Category
 
-	if err := mc.DB.Find(&categories).Error; err != nil {
+	if err := mc.DB.
+		Preload("Materials").
+		Find(&categories).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve categories"})
 		return
 	}
