@@ -5,9 +5,8 @@ import "gorm.io/gorm"
 type Purchase struct {
 	gorm.Model
 	Slug              string `gorm:"unique"`
+	PORef             string
 	Notes             string
-	ProjectID         uint
-	Project           Project
 	IsApprove         bool
 	PurchaseMaterials []PurchaseMaterial
 	CreatedByID       uint   `gorm:"not null"`

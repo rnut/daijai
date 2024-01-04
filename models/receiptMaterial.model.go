@@ -7,5 +7,7 @@ type ReceiptMaterial struct {
 	ReceiptID  uint
 	MaterialID uint
 	Quantity   int64
+	IsApproved bool
 	Material   Material
+	Price      int64
 }

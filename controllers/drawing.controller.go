@@ -45,12 +45,6 @@ func (dc *DrawingController) CreateDrawing(c *gin.Context) {
 	drw.CreatedBy = member
 	drw.Slug = c.Request.FormValue("Slug")
 	drw.PartNumber = c.Request.FormValue("PartNumber")
-	pQty, err := strconv.ParseInt(c.Request.FormValue("ProducedQuantity"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ProducedQuantity"})
-		return
-	}
-	drw.ProducedQuantity = pQty
 
 	if err := dc.DB.Transaction(func(tx *gorm.DB) error {
 		// Save uploaded image
@@ -68,10 +62,11 @@ func (dc *DrawingController) CreateDrawing(c *gin.Context) {
 		if err := tx.Create(&drw).Error; err != nil {
 			return err
 		}
-		var bombs []models.Bomb
-		mIDs := c.PostFormArray("Bombs.MaterialID")
-		qts := c.PostFormArray("Bombs.Quantity")
-		prices := c.PostFormArray("Bombs.Price")
+		var boms []models.Bom
+		mIDs := c.PostFormArray("Boms.MaterialID")
+		qts := c.PostFormArray("Boms.Quantity")
+		log.Println(mIDs)
+		log.Println(qts)
 
 		for i := 0; i < len(mIDs); i++ {
 			mID, err := strconv.ParseUint(mIDs[i], 10, 64)
@@ -82,25 +77,22 @@ func (dc *DrawingController) CreateDrawing(c *gin.Context) {
 			if err != nil {
 				break
 			}
-			price, err := strconv.ParseInt(prices[i], 10, 64)
-			if err != nil {
-				break
-			}
-			b := models.Bomb{
+
+			b := models.Bom{
 				DrawingID:  drw.ID,
 				Quantity:   qty,
 				MaterialID: uint(mID),
-				Price:      price,
 			}
 			if err := tx.Save(&b).Error; err != nil {
 				return err
 			}
-			bombs = append(bombs, b)
+			boms = append(boms, b)
 		}
-		drw.Bombs = bombs
+		drw.Boms = boms
 
 		return nil
 	}); err != nil {
+		log.Println(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create drawing"})
 		return
 	}
@@ -111,7 +103,7 @@ func (dc *DrawingController) CreateDrawing(c *gin.Context) {
 func (dc *DrawingController) GetDrawings(c *gin.Context) {
 	var drawings []models.Drawing
 
-	if err := dc.DB.Preload("Bombs.Material.Category").Preload("CreatedBy").Find(&drawings).Error; err != nil {
+	if err := dc.DB.Preload("Boms.Material.Category").Preload("CreatedBy").Find(&drawings).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve drawings"})
 		return
 	}
@@ -128,7 +120,7 @@ func (dc *DrawingController) GetDrawingByID(c *gin.Context) {
 	}
 
 	var drawing models.Drawing
-	if err := dc.DB.Preload("Bombs.Material.Category").Preload("CreatedBy").First(&drawing, drawingID).Error; err != nil {
+	if err := dc.DB.Preload("Boms.Material.Category").Preload("CreatedBy").First(&drawing, drawingID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Drawing not found"})
 		return
 	}
@@ -159,7 +151,7 @@ func (dc *DrawingController) UpdateDrawing(c *gin.Context) {
 	}
 
 	var drw models.Drawing
-	if err := dc.DB.Preload("Bombs").First(&drw, drawingID).Error; err != nil {
+	if err := dc.DB.Preload("Boms").First(&drw, drawingID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Drawing not found"})
 		return
 	}
@@ -169,12 +161,10 @@ func (dc *DrawingController) UpdateDrawing(c *gin.Context) {
 	drw.CreatedBy = member
 	drw.Slug = c.Request.FormValue("Slug")
 	drw.PartNumber = c.Request.FormValue("PartNumber")
-	pQty, err := strconv.ParseInt(c.Request.FormValue("ProducedQuantity"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ProducedQuantity"})
 		return
 	}
-	drw.ProducedQuantity = pQty
 
 	// Save uploaded image
 	file, header, err := c.Request.FormFile("image")
@@ -191,17 +181,16 @@ func (dc *DrawingController) UpdateDrawing(c *gin.Context) {
 	if err := dc.DB.Transaction(func(tx *gorm.DB) error {
 
 		// DELETE ALL BOMBS
-		for _, v := range drw.Bombs {
-			if err := dc.DB.Delete(&models.Bomb{}, v.ID).Error; err != nil {
+		for _, v := range drw.Boms {
+			if err := dc.DB.Delete(&models.Bom{}, v.ID).Error; err != nil {
 				return err
 			}
 		}
 
 		// CREATE NEW BOMBS
-		var bombs []models.Bomb
-		mIDs := c.PostFormArray("Bombs.MaterialID")
-		qts := c.PostFormArray("Bombs.Quantity")
-		prices := c.PostFormArray("Bombs.Price")
+		var boms []models.Bom
+		mIDs := c.PostFormArray("Boms.MaterialID")
+		qts := c.PostFormArray("Boms.Quantity")
 
 		for i := 0; i < len(mIDs); i++ {
 			mID, err := strconv.ParseUint(mIDs[i], 10, 64)
@@ -212,22 +201,17 @@ func (dc *DrawingController) UpdateDrawing(c *gin.Context) {
 			if err != nil {
 				break
 			}
-			price, err := strconv.ParseInt(prices[i], 10, 64)
-			if err != nil {
-				break
-			}
-			bomb := models.Bomb{
+			bomb := models.Bom{
 				DrawingID:  drw.ID,
 				Quantity:   qty,
 				MaterialID: uint(mID),
-				Price:      price,
 			}
 			if err := tx.Save(&bomb).Error; err != nil {
 				return err
 			}
-			bombs = append(bombs, bomb)
+			boms = append(boms, bomb)
 		}
-		drw.Bombs = bombs
+		drw.Boms = boms
 		if err := tx.Save(&drw).Error; err != nil {
 			return err
 		}

@@ -74,7 +74,8 @@ func ExtractTokenID(c *gin.Context) (uint, error) {
 		return []byte(os.Getenv("SECRET")), nil
 	})
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		return 0, err
 	}
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok {
@@ -88,8 +89,8 @@ func ExtractTokenID(c *gin.Context) (uint, error) {
 		return uint(uid), nil
 	} else {
 		fmt.Println(err)
+		return 0, err
 	}
-	return 0, nil
 }
 
 // func ExampleParse_hmac() {

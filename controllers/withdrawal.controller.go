@@ -241,20 +241,20 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 		}
 
 		// Update the material's quantity
-		if material.InUseQuantity >= withdrawalMaterial.Quantity {
-			material.InUseQuantity -= withdrawalMaterial.Quantity
-		} else {
-			q := withdrawalMaterial.Quantity - material.InUseQuantity
-			material.InUseQuantity = 0
-			material.Quantity -= q
-		}
+		// if material.InUseQuantity >= withdrawalMaterial.Quantity {
+		// 	material.InUseQuantity -= withdrawalMaterial.Quantity
+		// } else {
+		// 	q := withdrawalMaterial.Quantity - material.InUseQuantity
+		// 	material.InUseQuantity = 0
+		// 	material.Quantity -= q
+		// }
 
-		if material.Quantity < 0 {
-			// Handle insufficient quantity error
-			tx.Rollback()
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Insufficient quantity"})
-			return
-		}
+		// if material.Quantity < 0 {
+		// 	// Handle insufficient quantity error
+		// 	tx.Rollback()
+		// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Insufficient quantity"})
+		// 	return
+		// }
 
 		if err := tx.Save(&material).Error; err != nil {
 			tx.Rollback()

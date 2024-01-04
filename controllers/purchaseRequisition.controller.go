@@ -53,7 +53,7 @@ func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Conte
 			}
 
 			// Update the material's quantity
-			material.IncomingQuantity += rm.Quantity
+			// material.IncomingQuantity += rm.Quantity
 
 			if err := tx.Save(&material).Error; err != nil {
 				tx.Rollback()
@@ -148,7 +148,6 @@ func (prc *PurchaseRequisitionController) UpdatePurchaseRequisition(c *gin.Conte
 	}
 
 	purchaseRequisition.Notes = request.Notes
-	purchaseRequisition.ProjectID = request.ProjectID
 
 	if err := prc.DB.Transaction(func(tx *gorm.DB) error {
 		if err := prc.DB.Save(&purchaseRequisition).Error; err != nil {
