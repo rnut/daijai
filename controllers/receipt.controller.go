@@ -84,13 +84,13 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 				return err
 			}
 			// get last InventoryTransaction
-			var lastTransaction models.Transaction
+			var lastTransaction models.AppLog
 			if err := tx.Last(&lastTransaction, "material_id = ? AND inventory_id = ?", v.MaterialID, receipt.InventoryID).Error; err != nil {
 				lastTransaction.TotalQuantity = 0
 				lastTransaction.TotalReserve = 0
 			}
 
-			t := models.Transaction{
+			t := models.AppLog{
 				MaterialID:     v.MaterialID,
 				InventoryID:    receipt.InventoryID,
 				Quantity:       lastTransaction.TotalQuantity,
@@ -118,6 +118,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			inventoryMaterial.Reserve = 0
 			inventoryMaterial.AvailabelQty = v.Quantity
 			inventoryMaterial.IsOutOfStock = false
+			inventoryMaterial.Price = v.Price
 			if err := tx.Save(&inventoryMaterial).Error; err != nil {
 				return err
 			}
@@ -183,6 +184,36 @@ func (rc *ReceiptController) GetReceipt(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, receipt)
+}
+
+// GET Recript by slug
+func (rc *ReceiptController) GetReceiptBySlug(c *gin.Context) {
+	slug := c.Param("slug")
+
+	var receipt models.Receipt
+	if err := rc.
+		DB.
+		Preload("ReceiptMaterials.Material.Category").
+		Preload("CreatedBy").
+		Preload("ApprovedBy").
+		First(&receipt, "slug = ?", slug).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
+		return
+	}
+
+	// get all inventory materials by receipt id
+	var inventoryMaterials []models.InventoryMaterial
+	if err := rc.
+		DB.
+		Preload("Material").
+		Preload("Inventory").
+		Preload("Transactions.Order.Drawing").
+		Find(&inventoryMaterials, "receipt_id = ?", receipt.ID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"receipt": receipt, "inventoryMaterials": inventoryMaterials})
 }
 
 // UpdateReceipt updates a Receipt by ID.

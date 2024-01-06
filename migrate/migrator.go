@@ -28,13 +28,13 @@ func main() {
 	// config.DB.Migrator().DropTable(&models.Purchase{})
 	// config.DB.Migrator().DropTable(&models.PurchaseMaterial{})
 
-	// config.DB.Migrator().DropTable(&models.Receipt{})
-	// config.DB.Migrator().DropTable(&models.ReceiptMaterial{})
-	// config.DB.Migrator().DropTable(&models.Transaction{})
-	// config.DB.Migrator().DropTable(&models.InventoryMaterial{})
-
+	config.DB.Migrator().DropTable(&models.Receipt{})
+	config.DB.Migrator().DropTable(&models.ReceiptMaterial{})
+	config.DB.Migrator().DropTable(&models.AppLog{})
+	config.DB.Migrator().DropTable(&models.InventoryMaterial{})
 	config.DB.Migrator().DropTable(&models.Order{})
 	config.DB.Migrator().DropTable(&models.OrderBom{})
+	config.DB.Migrator().DropTable(&models.InventoryMaterialTransaction{})
 
 	// config.DB.AutoMigrate(&models.User{})
 	// config.DB.AutoMigrate(&models.Project{})
@@ -48,13 +48,13 @@ func main() {
 	// config.DB.AutoMigrate(&models.Purchase{})
 	// config.DB.AutoMigrate(&models.PurchaseMaterial{})
 
-	// config.DB.AutoMigrate(&models.Receipt{})
-	// config.DB.AutoMigrate(&models.ReceiptMaterial{})
-	// config.DB.AutoMigrate(&models.Transaction{})
-	// config.DB.AutoMigrate(&models.InventoryMaterial{})
-
+	config.DB.AutoMigrate(&models.Receipt{})
+	config.DB.AutoMigrate(&models.ReceiptMaterial{})
+	config.DB.AutoMigrate(&models.AppLog{})
+	config.DB.AutoMigrate(&models.InventoryMaterial{})
 	config.DB.AutoMigrate(&models.Order{})
 	config.DB.AutoMigrate(&models.OrderBom{})
+	config.DB.AutoMigrate(&models.InventoryMaterialTransaction{})
 
 	// initAdmin(config.DB)
 	// initUser(config.DB)

@@ -148,6 +148,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		receipts.POST("", ctrl.CreateReceipt)
 		receipts.GET("", ctrl.GetAllReceipts)
 		receipts.GET("/:id", ctrl.GetReceipt)
+		receipts.GET("/details/:slug", ctrl.GetReceiptBySlug)
 		receipts.PUT("/:id", ctrl.UpdateReceipt)
 		receipts.DELETE("/:id", ctrl.DeleteReceipt)
 		receipts.PUT("/approve/:id", ctrl.ApproveReceipt)

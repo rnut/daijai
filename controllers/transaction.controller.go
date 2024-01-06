@@ -19,7 +19,7 @@ func NewTransactionController(db *gorm.DB) *TransactionController {
 }
 
 func (mc *TransactionController) GetTransactions(c *gin.Context) {
-	var transaction []models.Transaction
+	var transaction []models.AppLog
 	if err := mc.
 		DB.
 		Preload("Inventory").
@@ -47,7 +47,7 @@ func (mc *TransactionController) GetTransactionsGroupByInventory(c *gin.Context)
 // / get transactions by PONumber
 func (mc *TransactionController) GetTransactionsByPONumber(c *gin.Context) {
 	ponumber := c.Param("id")
-	var transaction []models.Transaction
+	var transaction []models.AppLog
 	if err := mc.
 		DB.
 		Preload("Inventory").

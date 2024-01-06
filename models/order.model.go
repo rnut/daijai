@@ -17,12 +17,13 @@ type Order struct {
 
 type OrderBom struct {
 	gorm.Model
-	OrderID             uint
-	Order               Order
-	BomID               uint
-	Bom                 Bom
-	Quantity            int64
-	Reserved            int64
-	IsFullFilled        bool
-	InventoryMaterialID uint
+	OrderID              uint
+	Order                Order
+	BomID                uint
+	Bom                  Bom
+	TargetQty            int64
+	ReservedQty          int64
+	WithdrawedQty        int64
+	IsFullFilled         bool // จองครบหรือไม่
+	IsCompletelyWithdraw bool // เบิกครบหรือไม่
 }
