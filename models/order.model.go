@@ -4,7 +4,7 @@ import "gorm.io/gorm"
 
 type Order struct {
 	gorm.Model
-	Slug             string
+	Slug             string `gorm:"unique"`
 	Note             string
 	ProducedQuantity int64
 	DrawingID        uint
@@ -13,6 +13,7 @@ type Order struct {
 	Project          Project
 	CreatedByID      uint   `gorm:"not null"`
 	CreatedBy        Member `gorm:"foreignkey:CreatedByID"`
+	OrderBoms        *[]OrderBom
 }
 
 type OrderBom struct {

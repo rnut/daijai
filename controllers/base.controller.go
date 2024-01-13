@@ -3,7 +3,9 @@ package controllers
 import (
 	"daijai/models"
 	"daijai/token"
+	"fmt"
 	"log"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -30,5 +32,28 @@ func (bc *BaseController) getUserDataByUserID(db *gorm.DB, userID uint, member *
 		return err
 	}
 	*member = u.UserToMember()
+	return nil
+}
+
+func (bc *BaseController) RequestSlug(slug *string, db *gorm.DB, table string) error {
+	var data models.Slugger
+	if err := db.
+		Where("table_name = ?", table).
+		First(&data).
+		Error; err != nil {
+		log.Print(err)
+		return err
+	}
+
+	// Update the slug value
+	data.Value++
+	if err := db.Save(&data).Error; err != nil {
+		log.Print(err)
+		return err
+	}
+	pad := "%0" + strconv.Itoa(data.Pad) + "d"
+	incrementer := fmt.Sprintf(pad, data.Value)
+	combinedValue := data.Prefix + incrementer
+	*slug = combinedValue
 	return nil
 }

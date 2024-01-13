@@ -14,6 +14,32 @@ func init() {
 func main() {
 	config.ConnectDB()
 
+	// tables := []models.Slugable{
+	// &models.User{},
+	// &models.Project{},
+	// &models.Inventory{},
+	// &models.Category{},
+	// &models.Material{},
+	// &models.Drawing{},
+	// &models.Bom{},
+	// &models.Withdrawal{},
+	// &models.WithdrawalMaterial{},
+	// &models.Purchase{},
+	// &models.PurchaseMaterial{},
+	// &models.Receipt{},
+	// &models.ReceiptMaterial{},
+	// &models.AppLog{},
+	// &models.InventoryMaterial{},
+	// &models.Order{},
+	// &models.OrderBom{},
+	// &models.InventoryMaterialTransaction{},
+	// }
+
+	// for _, table := range tables {
+	// 	slug := table.GenerateSlug()
+	// 	log.Println(slug.TableName)
+	// }
+
 	// config.DB.Migrator().DropTable(&models.User{})
 	// config.DB.Migrator().DropTable(&models.Material{})
 	// config.DB.Migrator().DropTable(&models.Project{})
@@ -48,13 +74,13 @@ func main() {
 	// config.DB.AutoMigrate(&models.Purchase{})
 	// config.DB.AutoMigrate(&models.PurchaseMaterial{})
 
-	config.DB.AutoMigrate(&models.Receipt{})
-	config.DB.AutoMigrate(&models.ReceiptMaterial{})
-	config.DB.AutoMigrate(&models.AppLog{})
-	config.DB.AutoMigrate(&models.InventoryMaterial{})
-	config.DB.AutoMigrate(&models.Order{})
-	config.DB.AutoMigrate(&models.OrderBom{})
-	config.DB.AutoMigrate(&models.InventoryMaterialTransaction{})
+	// config.DB.AutoMigrate(&models.Receipt{})
+	// config.DB.AutoMigrate(&models.ReceiptMaterial{})
+	// config.DB.AutoMigrate(&models.AppLog{})
+	// config.DB.AutoMigrate(&models.InventoryMaterial{})
+	// config.DB.AutoMigrate(&models.Order{})
+	// config.DB.AutoMigrate(&models.OrderBom{})
+	// config.DB.AutoMigrate(&models.InventoryMaterialTransaction{})
 
 	// initAdmin(config.DB)
 	// initUser(config.DB)
@@ -62,6 +88,27 @@ func main() {
 	// initInventory(config.DB)
 	// initProject(config.DB)
 	// initMaterial(config.DB)
+
+	initSlugger(config.DB)
+}
+
+func initSlugger(db *gorm.DB) {
+	config.DB.Migrator().DropTable(&models.Slugger{})
+	config.DB.AutoMigrate(&models.Slugger{})
+	slugables := []models.Slugable{
+		&models.User{},
+		&models.Order{},
+	}
+	for _, m := range slugables {
+		slug := m.GenerateSlug()
+		s := models.Slugger{
+			TableName: slug.TableName,
+			Prefix:    slug.Prefix,
+			Pad:       slug.Pad,
+			Value:     0,
+		}
+		db.Create(&s)
+	}
 }
 
 func initAdmin(db *gorm.DB) {

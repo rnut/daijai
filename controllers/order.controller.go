@@ -189,10 +189,61 @@ func (odc *OrderController) GetOrders(c *gin.Context) {
 	var orders []models.Order
 	if err := odc.
 		DB.
+		Preload("Drawing").
+		Preload("CreatedBy").
+		Preload("OrderBoms").
 		Find(&orders).
 		Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Orders"})
 		return
 	}
 	c.JSON(http.StatusOK, orders)
+}
+
+func (odc *OrderController) GetOrderBySlug(c *gin.Context) {
+	var order models.Order
+	slug := c.Param("slug")
+	if err := odc.
+		DB.
+		Preload("Drawing").
+		Preload("CreatedBy").
+		Where("slug = ?", slug).
+		First(&order).
+		Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Order"})
+		return
+	}
+	c.JSON(http.StatusOK, order)
+}
+
+func (odc *OrderController) GetNewOrderInfo(c *gin.Context) {
+	// get projects
+	var projects []models.Project
+	if err := odc.DB.Find(&projects).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Projects"})
+		return
+	}
+	// get drawings
+	var drawings []models.Drawing
+	if err := odc.DB.Find(&drawings).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Drawings"})
+		return
+	}
+
+	// get slug
+	var slug string
+	if err := odc.RequestSlug(&slug, odc.DB, "orders"); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Slug", "detail": err.Error()})
+		return
+	}
+
+	var response struct {
+		Slug     string
+		Projects []models.Project
+		Drawings []models.Drawing
+	}
+	response.Slug = slug
+	response.Projects = projects
+	response.Drawings = drawings
+	c.JSON(http.StatusOK, response)
 }

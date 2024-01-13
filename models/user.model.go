@@ -4,7 +4,7 @@ import "gorm.io/gorm"
 
 type User struct {
 	gorm.Model
-	Slug      string `gorm:"unique" form:"Slug"`
+	Slug      string `gorm:"unique" form:"Slug" json:"Slug"`
 	Username  string `gorm:"unique" form:"Username"`
 	Password  string `form:"Password"`
 	FullName  string `form:"FullName"`
@@ -43,5 +43,9 @@ func (u *User) UserToMember() Member {
 }
 
 func (Member) TableName() string {
+	return "users"
+}
+
+func (User) TableName() string {
 	return "users"
 }

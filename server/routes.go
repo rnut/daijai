@@ -106,6 +106,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		ctrl := controllers.NewOrderController(db)
 		orders.POST("", ctrl.CreateOrder)
 		orders.GET("", ctrl.GetOrders)
+		orders.GET("/:slug", ctrl.GetOrderBySlug)
+		orders.GET("/new/info", ctrl.GetNewOrderInfo)
 	}
 
 	withdrawals := router.Group("withdrawals")
@@ -172,6 +174,14 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		auth.POST("/login", authCtrl.Login)
 		auth.POST("/logout", authCtrl.Logout)
 		auth.GET("/session", authCtrl.Session)
+	}
+
+	slugs := router.Group("slugs")
+	{
+		ctrl := controllers.NewSlugController(db)
+		slugs.GET("", ctrl.GetAllSluggers)
+		slugs.GET("/request/:slug", ctrl.RequestSlug)
+		slugs.GET("/:slug", ctrl.GetSlug)
 	}
 
 	router.Static("/image", "./public")
