@@ -31,3 +31,12 @@ func (Order) GenerateSlug() Slugger {
 		Value:     0,
 	}
 }
+
+func (Withdrawal) GenerateSlug() Slugger {
+	return Slugger{
+		TableName: "withdrawals",
+		Prefix:    "WDW-",
+		Pad:       7,
+		Value:     0,
+	}
+}

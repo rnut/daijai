@@ -14,31 +14,31 @@ func init() {
 func main() {
 	config.ConnectDB()
 
-	// tables := []models.Slugable{
-	// &models.User{},
-	// &models.Project{},
-	// &models.Inventory{},
-	// &models.Category{},
-	// &models.Material{},
-	// &models.Drawing{},
-	// &models.Bom{},
-	// &models.Withdrawal{},
-	// &models.WithdrawalMaterial{},
-	// &models.Purchase{},
-	// &models.PurchaseMaterial{},
-	// &models.Receipt{},
-	// &models.ReceiptMaterial{},
-	// &models.AppLog{},
-	// &models.InventoryMaterial{},
-	// &models.Order{},
-	// &models.OrderBom{},
-	// &models.InventoryMaterialTransaction{},
-	// }
+	tables := []interface{}{
+		&models.AppLog{},
+		// &models.Bom{},
+		// &models.Category{},
+		// &models.Drawing{},
+		// &models.Inventory{},
+		// &models.InventoryMaterial{},
+		// &models.InventoryMaterialTransaction{},
+		// &models.Material{},
+		&models.Order{},
+		&models.OrderBom{},
+		// &models.Project{},
+		&models.Purchase{},
+		&models.PurchaseMaterial{},
+		&models.Receipt{},
+		&models.ReceiptMaterial{},
+		// &models.User{},
+		&models.Withdrawal{},
+		&models.WithdrawalMaterial{},
+	}
 
-	// for _, table := range tables {
-	// 	slug := table.GenerateSlug()
-	// 	log.Println(slug.TableName)
-	// }
+	for _, table := range tables {
+		config.DB.Migrator().DropTable(&table)
+		config.DB.AutoMigrate(&table)
+	}
 
 	// config.DB.Migrator().DropTable(&models.User{})
 	// config.DB.Migrator().DropTable(&models.Material{})
@@ -54,13 +54,13 @@ func main() {
 	// config.DB.Migrator().DropTable(&models.Purchase{})
 	// config.DB.Migrator().DropTable(&models.PurchaseMaterial{})
 
-	config.DB.Migrator().DropTable(&models.Receipt{})
-	config.DB.Migrator().DropTable(&models.ReceiptMaterial{})
-	config.DB.Migrator().DropTable(&models.AppLog{})
-	config.DB.Migrator().DropTable(&models.InventoryMaterial{})
-	config.DB.Migrator().DropTable(&models.Order{})
-	config.DB.Migrator().DropTable(&models.OrderBom{})
-	config.DB.Migrator().DropTable(&models.InventoryMaterialTransaction{})
+	// config.DB.Migrator().DropTable(&models.Receipt{})
+	// config.DB.Migrator().DropTable(&models.ReceiptMaterial{})
+	// config.DB.Migrator().DropTable(&models.AppLog{})
+	// config.DB.Migrator().DropTable(&models.InventoryMaterial{})
+	// config.DB.Migrator().DropTable(&models.Order{})
+	// config.DB.Migrator().DropTable(&models.OrderBom{})
+	// config.DB.Migrator().DropTable(&models.InventoryMaterialTransaction{})
 
 	// config.DB.AutoMigrate(&models.User{})
 	// config.DB.AutoMigrate(&models.Project{})
@@ -98,6 +98,7 @@ func initSlugger(db *gorm.DB) {
 	slugables := []models.Slugable{
 		&models.User{},
 		&models.Order{},
+		&models.Withdrawal{},
 	}
 	for _, m := range slugables {
 		slug := m.GenerateSlug()

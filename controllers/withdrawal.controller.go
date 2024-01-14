@@ -300,3 +300,39 @@ func (mc *WithdrawalController) DeleteWithdraw(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Withdrawal deleted successfully"})
 }
+
+func (mc *WithdrawalController) GetNewWithdrawInfo(c *gin.Context) {
+	// get projects
+	var projects []models.Project
+	if err := mc.DB.Find(&projects).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Projects"})
+		return
+	}
+	var orders []models.Order
+	if err := mc.
+		DB.
+		Preload("Drawing").
+		Find(&orders).
+		Where("status = ?", "ready").
+		Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Orders"})
+		return
+	}
+
+	// get slug
+	var slug string
+	if err := mc.RequestSlug(&slug, mc.DB, "withdrawals"); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Slug", "detail": err.Error()})
+		return
+	}
+
+	var response struct {
+		Slug     string
+		Projects []models.Project
+		Orders   []models.Order
+	}
+	response.Slug = slug
+	response.Projects = projects
+	response.Orders = orders
+	c.JSON(http.StatusOK, response)
+}

@@ -107,12 +107,14 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		orders.POST("", ctrl.CreateOrder)
 		orders.GET("", ctrl.GetOrders)
 		orders.GET("/:slug", ctrl.GetOrderBySlug)
+		orders.GET("/bom/:slug", ctrl.GetOrderBOMBySlug)
 		orders.GET("/new/info", ctrl.GetNewOrderInfo)
 	}
 
 	withdrawals := router.Group("withdrawals")
 	{
 		withdrawCtrl := controllers.NewWithdrawalController(db)
+		withdrawals.GET("/new/info", withdrawCtrl.GetNewWithdrawInfo)
 		withdrawals.POST("", withdrawCtrl.CreateWithdrawal)
 		withdrawals.GET("", withdrawCtrl.GetAllWithdrawals)
 		withdrawals.PUT("/:id", withdrawCtrl.UpdateWithdrawal)
@@ -121,6 +123,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		withdrawals.PUT("/approve/:id",
 			middlewares.AuthMiddleware("admin"),
 			withdrawCtrl.ApproveWithdrawal)
+
 	}
 
 	pr := router.Group("pr")

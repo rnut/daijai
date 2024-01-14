@@ -40,6 +40,7 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 		DrawingID        int64
 		ProducedQuantity int64
 		ProjectID        int64
+		Notes            string
 	}
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -58,6 +59,7 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 	order.ProducedQuantity = request.ProducedQuantity
 	order.Drawing = drawing
 	order.ProjectID = uint(request.ProjectID)
+	order.Notes = request.Notes
 
 	if err := odc.DB.Transaction(func(tx *gorm.DB) error {
 		order.CreatedByID = member.ID
@@ -246,4 +248,21 @@ func (odc *OrderController) GetNewOrderInfo(c *gin.Context) {
 	response.Projects = projects
 	response.Drawings = drawings
 	c.JSON(http.StatusOK, response)
+}
+
+func (odc *OrderController) GetOrderBOMBySlug(c *gin.Context) {
+	slug := c.Param("slug")
+
+	// Get the order
+	var order models.Order
+	if err := odc.
+		DB.
+		Preload("OrderBoms.Bom.Material").
+		Where("slug = ?", slug).
+		First(&order).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Order"})
+		return
+	}
+	c.JSON(http.StatusOK, order.OrderBoms)
+
 }
