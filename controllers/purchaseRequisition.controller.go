@@ -21,6 +21,32 @@ func NewPurchaseRequisitionController(db *gorm.DB) *PurchaseRequisitionControlle
 	}
 }
 
+// get list or orderBoms with IsFullFilled = false
+func (prc *PurchaseRequisitionController) GetNewPRInfo(c *gin.Context) {
+	var orderBoms []models.OrderBom
+	if err := prc.DB.
+		Preload("Order").
+		Preload("Bom.Material.Category").
+		Where("is_full_filled = ?", false).
+		Find(&orderBoms).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve orderBoms"})
+		return
+	}
+
+	var resp struct {
+		OrderBoms []models.OrderBom
+		Slug	  string
+	}
+
+	resp.OrderBoms = orderBoms
+	if err := prc.RequestSlug(&resp.Slug, prc.DB, "withdrawals"); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Slug", "detail": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+
 // CreatePurchaseRequisition handles the creation of a new PurchaseRequisition.
 func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Context) {
 	var uid uint

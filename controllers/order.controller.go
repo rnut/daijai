@@ -70,41 +70,6 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 		mainInventory := uint(1)
 
 		for _, bom := range drawing.Boms {
-			// var transaction models.AppLog
-			// if err := tx.
-			// 	Where("material_id = ? AND inventory_id = ?", bom.MaterialID, mainInventory).
-			// 	Last(&transaction).
-			// 	Error; err != nil {
-			// 	return err
-			// }
-			// availabelQty := transaction.TotalQuantity - transaction.TotalReserve
-			// if availabelQty < 0 {
-			// 	availabelQty = 0
-			// }
-
-			// var reserve int64
-			// requireQty := bom.Quantity * order.ProducedQuantity
-			// if availabelQty < requireQty {
-			// 	reserve = availabelQty
-			// } else {
-			// 	reserve = requireQty
-			// }
-
-			// t := models.AppLog{
-			// 	MaterialID:     bom.MaterialID,
-			// 	InventoryID:    mainInventory,
-			// 	Quantity:       transaction.TotalQuantity,
-			// 	Reserve:        transaction.TotalReserve,
-			// 	QuantityChange: 0,
-			// 	ReserveChange:  reserve,
-			// 	TotalQuantity:  transaction.TotalQuantity,
-			// 	TotalReserve:   transaction.TotalReserve + reserve,
-			// 	Type:           "reserve",
-			// }
-			// if err := tx.Create(&t).Error; err != nil {
-			// 	return err
-			// }
-
 			// get InventoryMaterial that availableqty > 0 and not out of stock order by date created asc limit by sum of available == reserve
 			var inventoryMaterials []models.InventoryMaterial
 			if err := tx.
@@ -113,8 +78,19 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 				Find(&inventoryMaterials).Error; err != nil {
 				return err
 			}
-
+			
 			target := bom.Quantity * order.ProducedQuantity
+
+			var orderBom models.OrderBom
+			orderBom.OrderID = order.ID
+			orderBom.BomID = bom.ID
+			orderBom.TargetQty = target
+			orderBom.IsCompletelyWithdraw = false
+			orderBom.WithdrawedQty = 0
+			if err := tx.Create(&orderBom).Error; err != nil {
+				return err
+			}
+
 			totalReserve := int64(0)
 			var isFullFilled bool
 			for _, mat := range inventoryMaterials {
@@ -155,25 +131,32 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 					return err
 				}
 
+				// create order reserving
+				var orderReserving models.OrderReserving
+				orderReserving.OrderID = order.ID
+				orderReserving.OrderBomID = orderBom.ID
+				orderReserving.ReceiptID = mat.ReceiptID
+				orderReserving.InventoryMaterialID = mat.ID
+				orderReserving.Quantity = rQty
+				orderReserving.Status = models.OrderReservingStatus_Reserved
+
+
+				if err := tx.Create(&orderReserving).Error; err != nil {
+					return err
+				}
+
 				// update inventory material and out of stock
 				mat.Reserve = updatedReserve
 				mat.AvailabelQty -= rQty
 				mat.IsOutOfStock = isInventoryOutOfStock
-				log.Println("isInventoryOutOfStock", isInventoryOutOfStock)
 				if err := tx.Save(&mat).Error; err != nil {
 					return err
 				}
 			}
 
-			var orderBom models.OrderBom
-			orderBom.OrderID = order.ID
-			orderBom.BomID = bom.ID
-			orderBom.TargetQty = target
 			orderBom.ReservedQty = totalReserve
-			orderBom.WithdrawedQty = 0
-			orderBom.IsCompletelyWithdraw = false
 			orderBom.IsFullFilled = isFullFilled
-			if err := tx.Create(&orderBom).Error; err != nil {
+			if err := tx.Save(&orderBom).Error; err != nil {
 				return err
 			}
 		}
@@ -183,7 +166,7 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 		log.Println(err)
 		return
 	}
-	c.JSON(http.StatusCreated, request)
+	c.JSON(http.StatusCreated, order)
 }
 
 // / get all orders

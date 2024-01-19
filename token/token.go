@@ -65,7 +65,7 @@ func ExtractToken(c *gin.Context, token *string) error {
 func ExtractTokenID(c *gin.Context) (uint, error) {
 	var tokenString string
 	if err := ExtractToken(c, &tokenString); err != nil {
-		return 0, fmt.Errorf("unexpected token")
+		return 0, fmt.Errorf("unexpected token : ExtractTokenID : %v", err)
 	}
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {

@@ -16,6 +16,7 @@ type InventoryMaterial struct {
 	ReceiptID    uint
 	Quantity     int64
 	Reserve      int64
+	Withdrawed      int64
 	AvailabelQty int64
 	Price        int64
 	IsOutOfStock bool
@@ -36,6 +37,8 @@ type InventoryMaterialTransaction struct {
 	ExistingReserve          int64
 	UpdatedQuantity          int64
 	UpdatedReserve           int64
+	ReceiptID				*uint
+	Receipt					*Receipt `gorm:"foreignKey:ReceiptID;references:ID"`
 	OrderID                  *uint
 	Order                    *Order `gorm:"foreignKey:OrderID;references:ID"`
 	WithdrawalID             *uint
@@ -53,6 +56,7 @@ const (
 	InventoryTypeDescription_INCOMINGRECEIPT = "receipt"
 	InventoryTypeDescription_WITHDRAWAL      = "withdrawal"
 	InventoryTypeDescription_ORDER           = "order"
+	InventoryTypeDescription_FillFromReceipt   = "fill-order-from-receipt"
 	InventoryTypeDescription_RETURN          = "return"
 	InventoryTypeDescription_ADJUSTMENT      = "adjustment"
 )

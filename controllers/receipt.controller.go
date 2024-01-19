@@ -76,36 +76,16 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
 		return
 	}
-
 	if err := rc.DB.Transaction(func(tx *gorm.DB) error {
+		var matIDs []uint 
+		
+		matQuantity := make(map[uint]int64)
+		matInventoryId := make(map[uint]uint)
 		for _, v := range receipt.ReceiptMaterials {
+			matIDs = append(matIDs, v.MaterialID)
+			// update receipt material
 			v.IsApproved = true
 			if err := tx.Save(&v).Error; err != nil {
-				return err
-			}
-			// get last InventoryTransaction
-			var lastTransaction models.AppLog
-			if err := tx.Last(&lastTransaction, "material_id = ? AND inventory_id = ?", v.MaterialID, receipt.InventoryID).Error; err != nil {
-				lastTransaction.TotalQuantity = 0
-				lastTransaction.TotalReserve = 0
-			}
-
-			t := models.AppLog{
-				MaterialID:     v.MaterialID,
-				InventoryID:    receipt.InventoryID,
-				Quantity:       lastTransaction.TotalQuantity,
-				Reserve:        lastTransaction.TotalReserve,
-				QuantityChange: v.Quantity,
-				ReserveChange:  0,
-				TotalQuantity:  lastTransaction.TotalQuantity + v.Quantity,
-				TotalReserve:   lastTransaction.TotalReserve,
-				Price:          v.Price,
-				Type:           "receipt",
-				Ref:            receipt.Slug,
-				PONumber:       receipt.PONumber,
-				ReceiptID:      &receipt.ID,
-			}
-			if err := tx.Create(&t).Error; err != nil {
 				return err
 			}
 
@@ -122,8 +102,124 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			if err := tx.Save(&inventoryMaterial).Error; err != nil {
 				return err
 			}
+
+			// assign hashmap
+			matQuantity[v.MaterialID] = v.Quantity
+			matInventoryId[v.MaterialID] = inventoryMaterial.ID
+			
+			// create inventory materail transaction
+			inventoryMaterialTransaction := models.InventoryMaterialTransaction {
+				InventoryMaterialID: inventoryMaterial.ID,
+				Quantity: inventoryMaterial.Quantity,
+				InventoryType: models.InventoryType_INCOMING,
+				InventoryTypeDescription: models.InventoryTypeDescription_INCOMINGRECEIPT,
+				ExistingQuantity: 0,
+				ExistingReserve: 0,
+				UpdatedQuantity: inventoryMaterial.Quantity,
+				UpdatedReserve: 0,
+				ReceiptID: &receipt.ID,
+			}
+			if err := tx.Save(&inventoryMaterialTransaction).Error; err != nil {
+				return err
+			}
 		}
 
+		// get waiting material order boms
+		var orderBoms []models.OrderBom
+		withdrawStatuses := []string{models.OrderStatus_Waiting, models.OrderStatus_InProgress}
+		if err := rc.
+			DB.
+			Joins("Bom").
+			Joins("Order").
+			Where("is_full_filled = ?", false).
+			Where("withdraw_status IN (?)", withdrawStatuses).
+			Where("material_id IN ?", matIDs).
+			Find(&orderBoms).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch OrderBoms"})
+			return err
+		}
+
+		// loop order boms
+		for _, orderBom := range orderBoms {
+			target := orderBom.TargetQty - (orderBom.ReservedQty + orderBom.WithdrawedQty)
+			matID := orderBom.Bom.MaterialID
+			qouta := matQuantity[matID]
+
+			if qouta == 0 {
+				continue	
+			}
+
+			var quantity int64
+			if qouta > target {
+				quantity = target
+			} else {
+				quantity = qouta
+			}
+
+			inventoryMaterialID := matInventoryId[matID]
+
+			// create order reserving
+			orderReserving := models.OrderReserving {
+				OrderID: orderBom.OrderID,
+				OrderBomID: orderBom.ID,
+				ReceiptID: receipt.ID,
+				InventoryMaterialID: inventoryMaterialID,
+				Quantity: quantity,
+				Status: models.OrderReservingStatus_Reserved,
+			}
+			if err := tx.Save(&orderReserving).Error; err != nil {
+				return err
+			}
+
+			// update order bom
+			orderBom.ReservedQty += quantity
+			if orderBom.ReservedQty == orderBom.TargetQty {
+				orderBom.IsFullFilled = true
+			}
+			if err := tx.Save(&orderBom).Error; err != nil {
+				return err
+			}
+
+			// update inventory material
+			var inventoryMaterial models.InventoryMaterial
+			if err := tx.First(&inventoryMaterial, inventoryMaterialID).Error; err != nil {
+				return err
+			}
+			inventoryMaterial.Reserve += quantity
+			inventoryMaterial.AvailabelQty -= quantity
+			if inventoryMaterial.AvailabelQty == 0 {
+				inventoryMaterial.IsOutOfStock = true
+			}
+			if err := tx.Save(&inventoryMaterial).Error; err != nil {
+				return err
+			}
+
+			// create inventory material transaction
+			ivmtReserve := models.InventoryMaterialTransaction {
+				InventoryMaterialID: inventoryMaterialID,
+				Quantity: quantity,
+				InventoryType: models.InventoryType_RESERVE,
+				InventoryTypeDescription: models.InventoryTypeDescription_FillFromReceipt,
+				ExistingQuantity: qouta,
+				ExistingReserve: 0,
+				UpdatedQuantity: qouta,
+				UpdatedReserve: quantity,
+				OrderID: &orderBom.OrderID,
+			}
+			if err := tx.Save(&ivmtReserve).Error; err != nil {
+				return err
+			}
+
+			// update order status to in-progress
+			orderBom.Order.WithdrawStatus = models.OrderStatus_InProgress
+			if err := tx.Save(&orderBom.Order).Error; err != nil {
+				return err
+			}
+
+			matQuantity[matID] -= quantity
+		}
+
+		// update receipt status and approved by
 		receipt.IsApproved = true
 		receipt.ApprovedByID = &member.ID
 		receipt.ApprovedBy = &member

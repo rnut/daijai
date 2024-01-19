@@ -24,20 +24,14 @@ func NewWithdrawalController(db *gorm.DB) *WithdrawalController {
 	}
 }
 
-func (wc *WithdrawalController) GetWithdrawalByID(c *gin.Context) {
-	objID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Withdrawal ID"})
-		return
-	}
-
+func (wc *WithdrawalController) GetWithdrawalBySlug(c *gin.Context) {
+	slug := c.Param("slug")
 	var withdrawal models.Withdrawal
 	if err := wc.DB.
 		Preload("Project").
-		Preload("WithdrawalMaterials.Material.Category").
 		Preload("CreatedBy").
 		Preload("ApprovedBy").
-		First(&withdrawal, objID).Error; err != nil {
+		First(&withdrawal, "slug = ?", slug).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Withdrawal not found"})
 		return
 	}
@@ -59,7 +53,6 @@ func (wc *WithdrawalController) GetAllWithdrawals(c *gin.Context) {
 	var withdrawals []models.Withdrawal
 	q := wc.DB.
 		Preload("Project").
-		Preload("WithdrawalMaterials.Material.Category").
 		Preload("CreatedBy").
 		Preload("ApprovedBy")
 	if member.Role == "technician" {
@@ -79,8 +72,15 @@ func (wc *WithdrawalController) GetAllWithdrawals(c *gin.Context) {
 // CreateWithdrawal handles the creation of a new withdrawal transaction.
 func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 	var request struct {
-		Withdrawal          models.Withdrawal
-		WithdrawalMaterials []models.WithdrawalMaterial
+		Slug      string `json:"Slug"`
+		ProjectID int    `json:"ProjectID"`
+		OrderID   int    `json:"OrderID"`
+		Notes     string `json:"Notes"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	var uid uint
@@ -94,30 +94,61 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 		return
 	}
 
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	var order models.Order
+	if err := wc.DB.
+		Preload("Drawing").
+		Preload("OrderBoms").
+		Preload("OrderBoms.Bom").
+		Preload("OrderReservings").
+		First(&order).
+		Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Order"})
 		return
 	}
+
+	if order.WithdrawStatus != models.OrderStatus_Ready {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Order is not ready to create withdrawal"})
+		return
+	}
+
+	var withdrawal models.Withdrawal
+	var ts []models.WithdrawalTransaction
 
 	if err := wc.DB.Transaction(func(tx *gorm.DB) error {
-		request.Withdrawal.CreatedByID = member.ID
-		if err := tx.Create(&request.Withdrawal).Error; err != nil {
+		withdrawal.Slug = request.Slug
+		withdrawal.OrderID = uint(request.OrderID)
+		withdrawal.ProjectID = uint(request.ProjectID)
+		withdrawal.Notes = request.Notes
+		withdrawal.CreatedByID = member.ID
+		
+		if err := wc.DB.Create(&withdrawal).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Can not create Withdraw"})
 			return err
 		}
+		
+		for _, ob := range *order.OrderBoms {
+			withdrawTransaction := models.WithdrawalTransaction {
+				WithdrawalID: withdrawal.ID,
+				OrderBomID: ob.ID,
+				Quantity: ob.ReservedQty,
+				Status: models.WithdrawalTransactionStatus_InProgress,
+			}
 
-		for i := range request.WithdrawalMaterials {
-			request.WithdrawalMaterials[i].WithdrawalID = request.Withdrawal.ID
-			if err := tx.Create(&request.WithdrawalMaterials[i]).Error; err != nil {
+			if err := wc.DB.Create(&withdrawTransaction).Error; err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Can not create Withdraw"})
 				return err
 			}
+			ts = append(ts, withdrawTransaction)
 		}
+
+			
 		return nil
 	}); err != nil {
-		log.Println(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Withdraw"})
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"message": "Withdrawal created successfully", "withdrawal": request.Withdrawal})
+
+	c.JSON(http.StatusCreated, gin.H{"withdrawal": withdrawal, "transactions": ts})
 }
 
 func (wc *WithdrawalController) UpdateWithdrawal(c *gin.Context) {
@@ -126,7 +157,6 @@ func (wc *WithdrawalController) UpdateWithdrawal(c *gin.Context) {
 			ProjectID uint
 			Notes     string
 		}
-		WithdrawalMaterials []models.WithdrawalMaterial
 	}
 
 	withdrawalID, err := strconv.ParseUint(c.Param("id"), 10, 64)
@@ -140,7 +170,7 @@ func (wc *WithdrawalController) UpdateWithdrawal(c *gin.Context) {
 		return
 	}
 	var withdrawal models.Withdrawal
-	if err := wc.DB.Preload("Project").Preload("WithdrawalMaterials").Preload("WithdrawalMaterials.Material.Category").Preload("CreatedBy").First(&withdrawal, withdrawalID).Error; err != nil {
+	if err := wc.DB.Preload("Project").Preload("CreatedBy").First(&withdrawal, withdrawalID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Withdrawal not found", "id": withdrawalID})
 		return
 	}
@@ -154,24 +184,6 @@ func (wc *WithdrawalController) UpdateWithdrawal(c *gin.Context) {
 			return err
 		}
 
-		// DELETE ALL WithdrawalMaterials
-		for _, v := range withdrawal.WithdrawalMaterials {
-			if err := tx.Delete(&models.WithdrawalMaterial{}, v.ID).Error; err != nil {
-				return err
-			}
-		}
-
-		for _, v := range request.WithdrawalMaterials {
-			wm := models.WithdrawalMaterial{
-				WithdrawalID: withdrawal.ID,
-				MaterialID:   v.MaterialID,
-				Quantity:     v.Quantity,
-			}
-			if err := tx.Create(&wm).Error; err != nil {
-				return err
-			}
-			withdrawal.WithdrawalMaterials = append(withdrawal.WithdrawalMaterials, wm)
-		}
 		return nil
 	}); err != nil {
 		log.Println(err)
@@ -183,6 +195,7 @@ func (wc *WithdrawalController) UpdateWithdrawal(c *gin.Context) {
 
 // // ApproveWithdrawal approves a withdrawal transaction and updates the material quantity.
 func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
+
 	var uid uint
 	if err := wc.GetUserID(c, &uid); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -193,6 +206,7 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
 	if member.Role != "admin" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Permission Denied"})
 		return
@@ -207,9 +221,9 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 	var withdrawal models.Withdrawal
 	if err := wc.DB.
 		Preload("Project").
-		Preload("WithdrawalMaterials.Material.Category").
 		Preload("CreatedBy").
 		Preload("ApprovedBy").
+		Preload("WithdrawalTransactions", "withdrawal_transactions.status = ?", models.WithdrawalTransactionStatus_InProgress).
 		First(&withdrawal, withdrawalID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Withdrawal not found", "id": withdrawalID})
 		return
@@ -221,68 +235,97 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 		return
 	}
 
-	tx := wc.DB.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	if err := tx.Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to approve withdrawal"})
-	}
-
-	// Update the associated materials' quantity
-	for i, withdrawalMaterial := range withdrawal.WithdrawalMaterials {
-		material := models.Material{}
-		if err := wc.DB.First(&material, withdrawalMaterial.MaterialID).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve material"})
-			return
-		}
-
-		// Update the material's quantity
-		// if material.InUseQuantity >= withdrawalMaterial.Quantity {
-		// 	material.InUseQuantity -= withdrawalMaterial.Quantity
-		// } else {
-		// 	q := withdrawalMaterial.Quantity - material.InUseQuantity
-		// 	material.InUseQuantity = 0
-		// 	material.Quantity -= q
-		// }
-
-		// if material.Quantity < 0 {
-		// 	// Handle insufficient quantity error
-		// 	tx.Rollback()
-		// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Insufficient quantity"})
-		// 	return
-		// }
-
-		if err := tx.Save(&material).Error; err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update material"})
-			return
-		}
-
-		// set material back to withdrawalMaterials
-		withdrawal.WithdrawalMaterials[i].Material = material
-	}
-
-	// Mark the withdrawal as approved
-	withdrawal.IsApproved = true
-	withdrawal.ApprovedByID = &uid
-	withdrawal.ApprovedBy = member
-	if err := tx.Save(&withdrawal).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save approval withdrawal"})
+	var order models.Order
+	if err := wc.
+		DB.
+		Preload("Drawing").
+		Preload("OrderBoms.Bom").
+		Preload("OrderReservings").
+		Preload("OrderReservings.InventoryMaterial").
+		First(&order, withdrawal.OrderID).
+		Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Order"})
 		return
 	}
 
-	if err := tx.Commit().Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit withdrawal"})
+	if err := wc.DB.Transaction(func(tx *gorm.DB) error {
+		// update withdraw transactions
+		for _, wt := range *withdrawal.WithdrawalTransactions {
+			if wt.Status == models.WithdrawalTransactionStatus_InProgress {
+				wt.Status = models.WithdrawalTransactionStatus_Approved
+				if err := tx.Save(&wt).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		var isAllCompltelyWithdraw = true
+
+		// // update order bom
+		for _, ob := range *order.OrderBoms {
+			ob.WithdrawedQty += ob.ReservedQty
+			ob.ReservedQty = 0
+			if ob.IsFullFilled {
+				ob.IsCompletelyWithdraw = true
+			} else {
+				isAllCompltelyWithdraw = false
+			}
+
+			if err := tx.Save(&ob).Error; err != nil {
+				return err
+			}
+		}
+
+		// update order reservings
+		for _, reserve := range *order.OrderReservings {
+			if reserve.Status == models.OrderReservingStatus_Reserved {
+				reserve.Status = models.OrderReservingStatus_Withdrawed
+				if err := tx.Save(&reserve).Error; err != nil {
+					return err
+				}
+			}
+
+			// create material transaction
+			matTr := models.InventoryMaterialTransaction{
+				InventoryMaterialID:      reserve.InventoryMaterialID,
+				Quantity:                 reserve.Quantity,
+				InventoryType:            models.InventoryType_OUTGOING,
+				InventoryTypeDescription: models.InventoryTypeDescription_WITHDRAWAL,
+				ExistingQuantity:         reserve.InventoryMaterial.Quantity,
+				ExistingReserve:          reserve.InventoryMaterial.Reserve,
+				UpdatedQuantity:          reserve.Quantity - reserve.InventoryMaterial.Quantity,
+				UpdatedReserve:           reserve.InventoryMaterial.Reserve,
+				WithdrawalID:             &withdrawal.ID,
+			}
+			if err := wc.DB.Create(&matTr).Error; err != nil {
+				return err
+			}
+
+			// update inventory material
+			reserve.InventoryMaterial.Withdrawed += reserve.Quantity
+			if err := tx.Save(&reserve.InventoryMaterial).Error; err != nil {
+				return err
+			}
+
+		}
+
+		// update order
+		if isAllCompltelyWithdraw {
+			order.WithdrawStatus = models.OrderStatus_Complete
+		} else {
+			order.WithdrawStatus = models.OrderStatus_Waiting
+		}
+
+		if err := tx.Save(&order).Error; err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Withdraw"})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Withdrawal approved successfully", "withdrawal": withdrawal})
+	c.JSON(http.StatusOK, gin.H{"order": order})
 }
 
 // DeleteMaterial deletes a specific material by ID.

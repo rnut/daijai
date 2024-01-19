@@ -15,6 +15,7 @@ type Order struct {
 	CreatedBy        Member `gorm:"foreignkey:CreatedByID"`
 	OrderBoms        *[]OrderBom
 	WithdrawStatus   string `gorm:"default:'ready'"` // ready, in-progress, complete
+	OrderReservings      *[]OrderReserving
 }
 
 type OrderBom struct {
@@ -22,10 +23,17 @@ type OrderBom struct {
 	OrderID              uint
 	Order                Order
 	BomID                uint
-	Bom                  Bom
+	Bom                  *Bom
 	TargetQty            int64
 	ReservedQty          int64
 	WithdrawedQty        int64
 	IsFullFilled         bool // จองครบหรือไม่
 	IsCompletelyWithdraw bool // เบิกครบหรือไม่
 }
+
+const (
+	OrderStatus_Ready      = "ready"
+	OrderStatus_Waiting = "wating"
+	OrderStatus_InProgress = "in-progress"
+	OrderStatus_Complete   = "complete"
+)

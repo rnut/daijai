@@ -118,12 +118,11 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		withdrawals.POST("", withdrawCtrl.CreateWithdrawal)
 		withdrawals.GET("", withdrawCtrl.GetAllWithdrawals)
 		withdrawals.PUT("/:id", withdrawCtrl.UpdateWithdrawal)
-		withdrawals.GET("/:id", withdrawCtrl.GetWithdrawalByID)
+		withdrawals.GET("/:slug", withdrawCtrl.GetWithdrawalBySlug)
 		withdrawals.DELETE("/:id", withdrawCtrl.DeleteWithdraw)
 		withdrawals.PUT("/approve/:id",
 			middlewares.AuthMiddleware("admin"),
 			withdrawCtrl.ApproveWithdrawal)
-
 	}
 
 	pr := router.Group("pr")
@@ -131,6 +130,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		ctrl := controllers.NewPurchaseRequisitionController(db)
 		pr.POST("", ctrl.CreatePurchaseRequisition)
 		pr.GET("", ctrl.GetAllPurchaseRequisition)
+		pr.GET("/new/info", ctrl.GetNewPRInfo)
 		pr.GET("/:id", ctrl.GetPurchaseRequisition)
 		pr.PUT("/:id", ctrl.UpdatePurchaseRequisition)
 		pr.DELETE("/:id", ctrl.DeletePurchaseRequisition)

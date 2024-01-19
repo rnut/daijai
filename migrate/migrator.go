@@ -15,24 +15,28 @@ func main() {
 	config.ConnectDB()
 
 	tables := []interface{}{
-		&models.AppLog{},
-		// &models.Bom{},
-		// &models.Category{},
-		// &models.Drawing{},
-		// &models.Inventory{},
-		// &models.InventoryMaterial{},
-		// &models.InventoryMaterialTransaction{},
-		// &models.Material{},
-		&models.Order{},
-		&models.OrderBom{},
-		// &models.Project{},
-		&models.Purchase{},
-		&models.PurchaseMaterial{},
-		&models.Receipt{},
+		// relation tables
 		&models.ReceiptMaterial{},
-		// &models.User{},
+		&models.OrderBom{},
+		&models.OrderReserving{},
+		&models.WithdrawalTransaction{},
+		&models.InventoryMaterial{},
+		&models.InventoryMaterialTransaction{},
+		&models.PurchaseMaterial{},
+		// main tables
 		&models.Withdrawal{},
-		&models.WithdrawalMaterial{},
+		&models.Receipt{},
+		&models.Order{},
+		&models.Material{},
+		&models.AppLog{},
+		&models.Bom{},
+		&models.Category{},
+		&models.Drawing{},
+		&models.Inventory{},
+		&models.Project{},
+		&models.Purchase{},
+		&models.Slugger{},
+		&models.User{},
 	}
 
 	for _, table := range tables {
@@ -40,61 +44,15 @@ func main() {
 		config.DB.AutoMigrate(&table)
 	}
 
-	// config.DB.Migrator().DropTable(&models.User{})
-	// config.DB.Migrator().DropTable(&models.Material{})
-	// config.DB.Migrator().DropTable(&models.Project{})
-	// config.DB.Migrator().DropTable(&models.Category{})
-	// config.DB.Migrator().DropTable(&models.Inventory{})
-
-	// config.DB.Migrator().DropTable(&models.Drawing{})
-	// config.DB.Migrator().DropTable(&models.Bom{})
-	// config.DB.Migrator().DropTable(&models.Withdrawal{})
-	// config.DB.Migrator().DropTable(&models.WithdrawalMaterial{})
-	// config.DB.Migrator().DropTable(&models.Project{})
-	// config.DB.Migrator().DropTable(&models.Purchase{})
-	// config.DB.Migrator().DropTable(&models.PurchaseMaterial{})
-
-	// config.DB.Migrator().DropTable(&models.Receipt{})
-	// config.DB.Migrator().DropTable(&models.ReceiptMaterial{})
-	// config.DB.Migrator().DropTable(&models.AppLog{})
-	// config.DB.Migrator().DropTable(&models.InventoryMaterial{})
-	// config.DB.Migrator().DropTable(&models.Order{})
-	// config.DB.Migrator().DropTable(&models.OrderBom{})
-	// config.DB.Migrator().DropTable(&models.InventoryMaterialTransaction{})
-
-	// config.DB.AutoMigrate(&models.User{})
-	// config.DB.AutoMigrate(&models.Project{})
-	// config.DB.AutoMigrate(&models.Inventory{})
-	// config.DB.AutoMigrate(&models.Category{})
-	// config.DB.AutoMigrate(&models.Material{})
-	// config.DB.AutoMigrate(&models.Drawing{})
-	// config.DB.AutoMigrate(&models.Bom{})
-	// config.DB.AutoMigrate(&models.Withdrawal{})
-	// config.DB.AutoMigrate(&models.WithdrawalMaterial{})
-	// config.DB.AutoMigrate(&models.Purchase{})
-	// config.DB.AutoMigrate(&models.PurchaseMaterial{})
-
-	// config.DB.AutoMigrate(&models.Receipt{})
-	// config.DB.AutoMigrate(&models.ReceiptMaterial{})
-	// config.DB.AutoMigrate(&models.AppLog{})
-	// config.DB.AutoMigrate(&models.InventoryMaterial{})
-	// config.DB.AutoMigrate(&models.Order{})
-	// config.DB.AutoMigrate(&models.OrderBom{})
-	// config.DB.AutoMigrate(&models.InventoryMaterialTransaction{})
-
-	// initAdmin(config.DB)
-	// initUser(config.DB)
-	// initCategory(config.DB)
-	// initInventory(config.DB)
-	// initProject(config.DB)
-	// initMaterial(config.DB)
-
+	initUsers(config.DB)
+	initCategory(config.DB)
+	initInventory(config.DB)
+	initProject(config.DB)
+	initMaterial(config.DB)
 	initSlugger(config.DB)
 }
 
 func initSlugger(db *gorm.DB) {
-	config.DB.Migrator().DropTable(&models.Slugger{})
-	config.DB.AutoMigrate(&models.Slugger{})
 	slugables := []models.Slugable{
 		&models.User{},
 		&models.Order{},
@@ -112,81 +70,122 @@ func initSlugger(db *gorm.DB) {
 	}
 }
 
-func initAdmin(db *gorm.DB) {
-	admin := models.User{
-		Slug:     "admin-001",
-		Username: "salah",
-		Password: "$2a$10$zeswe0/DbG/2k.4KlIbLTO2bYwmvpbXMYp2aJf.dyy7FXyHOmg9xm",
-		FullName: "John Doe",
-		Role:     "admin",
-		Tel:      "0990938983",
+func initUsers(db *gorm.DB) {
+	pwd := "$2a$10$zeswe0/DbG/2k.4KlIbLTO2bYwmvpbXMYp2aJf.dyy7FXyHOmg9xm"
+	users := []models.User{
+		{
+			Slug:     "ADM-001",
+			Username: "salah",
+			Password: pwd,
+			FullName: "John Doe",
+			Role:     models.ROLE_Admin,
+			Tel:      "0990938983",
+		},
+		{
+			Slug:     "TCH-001",
+			Username: "woofoo",
+			Password: pwd,
+			FullName: "Woo Foo",
+			Role:     models.ROLE_Tech,
+			Tel:      "0994441111",
+		},
 	}
 
-	db.Create(&admin)
-}
-
-func initUser(db *gorm.DB) {
-	user := models.User{
-		Slug:     "user-001",
-		Username: "greliss",
-		Password: "$2a$10$zeswe0/DbG/2k.4KlIbLTO2bYwmvpbXMYp2aJf.dyy7FXyHOmg9xm",
-		FullName: "Jack Grelish",
-		Role:     "user",
-		Tel:      "0992221111",
+	for _, user := range users {
+		db.Create(&user)
 	}
-
-	db.Create(&user)
 }
 
 func initCategory(db *gorm.DB) {
-	item := models.Category{
-		Slug:     "PremierLeague",
-		Title:    "พรีเมียร์ลีก",
-		Subtitle: "ลีคสูงสุดประเทศอังกฤษ",
+	categories := []models.Category{
+		{
+			Slug:     "ไม่้บอร์ด",
+			Title:    "Furniture Material 1",
+			Subtitle: "Mock Furniture Material 1",
+		},
+		{
+			Slug:     "ปิดขอบ",
+			Title:    "Furniture Material 2",
+			Subtitle: "Mock Furniture Material 2",
+		},
+		{
+			Slug:     "น็อต สรู",
+			Title:    "Furniture Material 3",
+			Subtitle: "Mock Furniture Material 3",
+		},
+		{
+			Slug:     "มือจับ",
+			Title:    "Furniture Material 4",
+			Subtitle: "Mock Furniture Material 4",
+		},
+		{
+			Slug:     "ลิ้นชัก",
+			Title:    "Furniture Material 5",
+			Subtitle: "Mock Furniture Material 5",
+		},
 	}
-	db.Create(&item)
 
-	item2 := models.Category{
-		Slug:     "Series A",
-		Title:    "galcao series R",
-		Subtitle: "ลีคสูงสุดประเทศอิตาลี",
+	for _, category := range categories {
+		db.Create(&category)
 	}
-
-	db.Create(&item2)
 }
 
 func initInventory(db *gorm.DB) {
-	inventory := models.Inventory{
-		Slug:  "inventory-001",
-		Title: "Main Inventory",
+	inventories := []models.Inventory{
+		{
+			Slug:  "IVT-001",
+			Title: "Main Inventory",
+		},
+		{
+			Slug:  "IVT-002",
+			Title: "Factory Inventory",
+		},
 	}
 
-	inventory2 := models.Inventory{
-		Slug:  "inventory-002",
-		Title: "Factory Inventory",
+	for _, inventory := range inventories {
+		db.Create(&inventory)
 	}
-	db.Create(&inventory)
-	db.Create(&inventory2)
 }
 
 // init project model
 func initProject(db *gorm.DB) {
-	project := models.Project{
-		Slug:  "project-001",
-		Title: "Project 1",
+	projects := []models.Project{
+		{
+			Slug:  "PRJ-001",
+			Title: "NAWAMIN",
+		},
+		{
+			Slug:  "PRJ-002",
+			Title: "RamIndhra",
+		},
 	}
-	db.Create(&project)
+
+	for _, v := range projects {
+		db.Create(&v)
+	}
 }
 
 // init material model
 func initMaterial(db *gorm.DB) {
-	material := models.Material{
-		Slug:       "material-001",
-		Title:      "Material 1",
-		Subtitle:   "Sub title Material 1",
-		Min:        10,
-		Max:        100,
-		CategoryID: 1,
+	materials := []models.Material{
+		{
+			Slug:       "MAT-001",
+			Title:      "ไม้อัด 20mm",
+			Subtitle:   "ไม้ยางพาราอัด หน้าขาว",
+			Min:        10,
+			Max:        100,
+			CategoryID: 1,
+		},
+		{
+			Slug:       "MAT-002",
+			Title:      "ฟอเมก้า ปิดขอบ 2mm.",
+			Subtitle:   "สีไม้ ความยาว 20เมตร",
+			Min:        10,
+			Max:        100,
+			CategoryID: 1,
+		},
 	}
-	db.Create(&material)
+	for _, mat := range materials {
+		db.Create(&mat)
+	}
 }

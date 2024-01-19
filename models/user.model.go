@@ -49,3 +49,9 @@ func (Member) TableName() string {
 func (User) TableName() string {
 	return "users"
 }
+
+const (
+	ROLE_Admin = "admin"
+	ROLE_User  = "user"
+	ROLE_Tech  = "technician"
+)
