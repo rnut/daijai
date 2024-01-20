@@ -59,48 +59,105 @@ func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Conte
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	var request models.Purchase
+	var request struct {
+		Slug string `json:"Slug"`
+		Notes string `json:"Notes"`
+		PurchaseMaterials []models.PurchaseMaterial `json:"PurchaseMaterials"`
+		PORefs []string `json:"PORefs"`
+	}
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	request.CreatedByID = member.ID
-	if err := prc.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&request).Error; err != nil {
-			return err
+	
+	var poRefs []models.PORef
+	for _, slug := range request.PORefs {
+		po := models.PORef {
+			Slug: slug,
+		}
+		if err := prc.DB.
+			Where("slug = ?", slug).
+			FirstOrCreate(&po).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create poRef"})
+			return	
 		}
 
-		// Update the associated materials' quantity
-		for i, rm := range request.PurchaseMaterials {
-			material := models.Material{}
-			if err := prc.DB.First(&material, rm.MaterialID).Error; err != nil {
-				return err
-			}
-
-			// Update the material's quantity
-			// material.IncomingQuantity += rm.Quantity
-
-			if err := tx.Save(&material).Error; err != nil {
-				tx.Rollback()
-				return err
-			}
-
-			// set material back to withdrawalMaterials
-			request.PurchaseMaterials[i].Material = material
-
-			if err := tx.Save(&request.PurchaseMaterials[i]).Error; err != nil {
-				return err
-			}
-		}
-
-		return nil
-	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create pr"})
-		return
+		poRefs = append(poRefs, po)
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "PurchaseRequisition created successfully"})
+	// create Purchase
+	purchase := models.Purchase{
+		Slug: request.Slug,
+		Notes: request.Notes,
+		CreatedByID: member.ID,
+		PORefs: poRefs,
+	}
+	if err := prc.DB.Create(&purchase).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H {
+		"purchase": purchase,
+	})
+
+
+	// for i, rm := range request.PurchaseMaterials {
+	// 	material := models.Material{}
+	// 	if err := prc.DB.First(&material, rm.MaterialID).Error; err != nil {
+	// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// 		return
+	// 	}
+	// 	if err := prc.DB.Save(&material).Error; err != nil {
+	// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// 		return
+	// 	}
+	// 	if err := prc.DB.Save(&request.PurchaseMaterials[i]).Error; err != nil {
+	// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// 		return
+	// 	}
+	// }
+
+	
+
+	// c.JSON(http.StatusOK, purchase)
+
+	// request.CreatedByID = member.ID
+	// if err := prc.DB.Transaction(func(tx *gorm.DB) error {
+	// 	if err := tx.Create(&request).Error; err != nil {
+	// 		return err
+	// 	}
+
+	// 	// Update the associated materials' quantity
+	// 	for i, rm := range request.PurchaseMaterials {
+	// 		material := models.Material{}
+	// 		if err := prc.DB.First(&material, rm.MaterialID).Error; err != nil {
+	// 			return err
+	// 		}
+
+	// 		// Update the material's quantity
+	// 		// material.IncomingQuantity += rm.Quantity
+
+	// 		if err := tx.Save(&material).Error; err != nil {
+	// 			tx.Rollback()
+	// 			return err
+	// 		}
+
+	// 		// set material back to withdrawalMaterials
+	// 		request.PurchaseMaterials[i].Material = material
+
+	// 		if err := tx.Save(&request.PurchaseMaterials[i]).Error; err != nil {
+	// 			return err
+	// 		}
+	// 	}
+
+	// 	return nil
+	// }); err != nil {
+	// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create pr"})
+	// 	return
+	// }
+
+	// c.JSON(http.StatusCreated, gin.H{"message": "PurchaseRequisition created successfully"})
 }
 
 // GetPurchaseRequisition retrieves a PurchaseRequisition by ID.

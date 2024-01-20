@@ -34,12 +34,24 @@ func main() {
 		&models.Drawing{},
 		&models.Inventory{},
 		&models.Project{},
+		&models.PORef{},
 		&models.Purchase{},
 		&models.Slugger{},
 		&models.User{},
+		
+	}
+	
+	for _, table := range tables {
+		config.DB.Migrator().DropTable(&table)
+		config.DB.AutoMigrate(&table)
 	}
 
-	for _, table := range tables {
+	// many2many tables
+	m2mTables := []interface{}{
+		// &models.PurchasePORefs{},
+	}
+
+	for _, table := range m2mTables {
 		config.DB.Migrator().DropTable(&table)
 		config.DB.AutoMigrate(&table)
 	}
