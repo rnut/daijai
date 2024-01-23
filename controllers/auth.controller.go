@@ -23,16 +23,20 @@ func NewAuth(db *gorm.DB) *AuthController {
 }
 
 func (uc *AuthController) Session(c *gin.Context) {
+	log.Println("🔥Session")
 	var uid uint
 	if err := uc.GetUserID(c, &uid); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		log.Printf("🔥Session-GetUserID: %+v\n", err)
 		return
 	}
 	var member models.Member
 	if err := uc.getUserDataByUserID(uc.DB, uid, &member); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		log.Printf("🔥Session-getUserDataByUserID: %+v\n", err)
 		return
 	}
+	log.Println("🔥🔥🔥🔥Session: member: ", member.FullName)
 	c.JSON(http.StatusCreated, member)
 }
 

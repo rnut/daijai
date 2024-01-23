@@ -77,8 +77,8 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 		return
 	}
 	if err := rc.DB.Transaction(func(tx *gorm.DB) error {
-		var matIDs []uint 
-		
+		var matIDs []uint
+
 		matQuantity := make(map[uint]int64)
 		matInventoryId := make(map[uint]uint)
 		for _, v := range receipt.ReceiptMaterials {
@@ -106,18 +106,18 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			// assign hashmap
 			matQuantity[v.MaterialID] = v.Quantity
 			matInventoryId[v.MaterialID] = inventoryMaterial.ID
-			
+
 			// create inventory materail transaction
-			inventoryMaterialTransaction := models.InventoryMaterialTransaction {
-				InventoryMaterialID: inventoryMaterial.ID,
-				Quantity: inventoryMaterial.Quantity,
-				InventoryType: models.InventoryType_INCOMING,
+			inventoryMaterialTransaction := models.InventoryMaterialTransaction{
+				InventoryMaterialID:      inventoryMaterial.ID,
+				Quantity:                 inventoryMaterial.Quantity,
+				InventoryType:            models.InventoryType_INCOMING,
 				InventoryTypeDescription: models.InventoryTypeDescription_INCOMINGRECEIPT,
-				ExistingQuantity: 0,
-				ExistingReserve: 0,
-				UpdatedQuantity: inventoryMaterial.Quantity,
-				UpdatedReserve: 0,
-				ReceiptID: &receipt.ID,
+				ExistingQuantity:         0,
+				ExistingReserve:          0,
+				UpdatedQuantity:          inventoryMaterial.Quantity,
+				UpdatedReserve:           0,
+				ReceiptID:                &receipt.ID,
 			}
 			if err := tx.Save(&inventoryMaterialTransaction).Error; err != nil {
 				return err
@@ -139,6 +139,13 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			return err
 		}
 
+		for _, v := range orderBoms {
+			log.Println(v.ID)
+			log.Println(v.Order.Slug)
+
+		}
+
+		var filledOrderBomIDs []uint
 		// loop order boms
 		for _, orderBom := range orderBoms {
 			target := orderBom.TargetQty - (orderBom.ReservedQty + orderBom.WithdrawedQty)
@@ -146,7 +153,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			qouta := matQuantity[matID]
 
 			if qouta == 0 {
-				continue	
+				continue
 			}
 
 			var quantity int64
@@ -159,13 +166,13 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			inventoryMaterialID := matInventoryId[matID]
 
 			// create order reserving
-			orderReserving := models.OrderReserving {
-				OrderID: orderBom.OrderID,
-				OrderBomID: orderBom.ID,
-				ReceiptID: receipt.ID,
+			orderReserving := models.OrderReserving{
+				OrderID:             orderBom.OrderID,
+				OrderBomID:          orderBom.ID,
+				ReceiptID:           receipt.ID,
 				InventoryMaterialID: inventoryMaterialID,
-				Quantity: quantity,
-				Status: models.OrderReservingStatus_Reserved,
+				Quantity:            quantity,
+				Status:              models.OrderReservingStatus_Reserved,
 			}
 			if err := tx.Save(&orderReserving).Error; err != nil {
 				return err
@@ -173,8 +180,11 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 
 			// update order bom
 			orderBom.ReservedQty += quantity
-			if orderBom.ReservedQty == orderBom.TargetQty {
+
+			totalQty := orderBom.ReservedQty + orderBom.WithdrawedQty
+			if totalQty == orderBom.TargetQty {
 				orderBom.IsFullFilled = true
+				filledOrderBomIDs = append(filledOrderBomIDs, orderBom.ID)
 			}
 			if err := tx.Save(&orderBom).Error; err != nil {
 				return err
@@ -195,16 +205,16 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			}
 
 			// create inventory material transaction
-			ivmtReserve := models.InventoryMaterialTransaction {
-				InventoryMaterialID: inventoryMaterialID,
-				Quantity: quantity,
-				InventoryType: models.InventoryType_RESERVE,
+			ivmtReserve := models.InventoryMaterialTransaction{
+				InventoryMaterialID:      inventoryMaterialID,
+				Quantity:                 quantity,
+				InventoryType:            models.InventoryType_RESERVE,
 				InventoryTypeDescription: models.InventoryTypeDescription_FillFromReceipt,
-				ExistingQuantity: qouta,
-				ExistingReserve: 0,
-				UpdatedQuantity: qouta,
-				UpdatedReserve: quantity,
-				OrderID: &orderBom.OrderID,
+				ExistingQuantity:         qouta,
+				ExistingReserve:          0,
+				UpdatedQuantity:          qouta,
+				UpdatedReserve:           quantity,
+				OrderID:                  &orderBom.OrderID,
 			}
 			if err := tx.Save(&ivmtReserve).Error; err != nil {
 				return err
@@ -226,6 +236,20 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 		if err := tx.Save(&receipt).Error; err != nil {
 			return err
 		}
+
+		// update filled order boms
+		log.Print("filledOrderBomIDs: ")
+		log.Println(filledOrderBomIDs)
+		if len(filledOrderBomIDs) > 0 {
+			if err := tx.
+				Model(&models.PurchaseSuggestion{}).
+				Where("id IN ?", filledOrderBomIDs).
+				Update("status", models.PurchaseSuggestionStatus_Done).
+				Error; err != nil {
+				return err
+			}
+		}
+
 		return nil
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to approve Receipt"})

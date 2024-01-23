@@ -13,7 +13,8 @@ func init() {
 
 func main() {
 	config.ConnectDB()
-
+	db := config.DB
+	migrator := db.Migrator()
 	tables := []interface{}{
 		// relation tables
 		&models.ReceiptMaterial{},
@@ -22,6 +23,7 @@ func main() {
 		&models.WithdrawalTransaction{},
 		&models.InventoryMaterial{},
 		&models.InventoryMaterialTransaction{},
+		&models.PurchaseSuggestion{},
 		&models.PurchaseMaterial{},
 		// main tables
 		&models.Withdrawal{},
@@ -34,26 +36,15 @@ func main() {
 		&models.Drawing{},
 		&models.Inventory{},
 		&models.Project{},
-		&models.PORef{},
+		&models.PurchasePORefs{},
 		&models.Purchase{},
+		&models.PORef{},
 		&models.Slugger{},
 		&models.User{},
-		
 	}
-	
 	for _, table := range tables {
-		config.DB.Migrator().DropTable(&table)
-		config.DB.AutoMigrate(&table)
-	}
-
-	// many2many tables
-	m2mTables := []interface{}{
-		// &models.PurchasePORefs{},
-	}
-
-	for _, table := range m2mTables {
-		config.DB.Migrator().DropTable(&table)
-		config.DB.AutoMigrate(&table)
+		migrator.DropTable(table)
+		db.AutoMigrate(&table)
 	}
 
 	initUsers(config.DB)
@@ -69,6 +60,7 @@ func initSlugger(db *gorm.DB) {
 		&models.User{},
 		&models.Order{},
 		&models.Withdrawal{},
+		&models.Purchase{},
 	}
 	for _, m := range slugables {
 		slug := m.GenerateSlug()

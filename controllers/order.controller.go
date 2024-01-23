@@ -159,6 +159,15 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 			if err := tx.Save(&orderBom).Error; err != nil {
 				return err
 			}
+
+			if !isFullFilled {
+				var sg models.PurchaseSuggestion
+				sg.OrderBomID = orderBom.ID
+				sg.Status = models.PurchaseSuggestionStatus_Ready
+				if err := tx.Create(&sg).Error; err != nil {
+					return err
+				}
+			}
 		}
 		return nil
 	}); err != nil {

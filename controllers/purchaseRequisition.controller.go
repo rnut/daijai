@@ -23,29 +23,44 @@ func NewPurchaseRequisitionController(db *gorm.DB) *PurchaseRequisitionControlle
 
 // get list or orderBoms with IsFullFilled = false
 func (prc *PurchaseRequisitionController) GetNewPRInfo(c *gin.Context) {
-	var orderBoms []models.OrderBom
+	var purchaseSuggestions []models.PurchaseSuggestion
 	if err := prc.DB.
-		Preload("Order").
-		Preload("Bom.Material.Category").
-		Where("is_full_filled = ?", false).
-		Find(&orderBoms).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve orderBoms"})
+		Preload("OrderBom.Order.Drawing").
+		Preload("OrderBom.Bom.Material").
+		Where("status IN (?)", []string{models.PurchaseSuggestionStatus_Ready, models.PurchaseSuggestionStatus_InProgress}).
+		Find(&purchaseSuggestions).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve purchaseSuggestions"})
+		return
+	}
+
+	var poRefs []models.PORef
+	if err := prc.DB.Find(&poRefs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve poRefs"})
+		return
+	}
+
+	var categories []models.Category
+	if err := prc.DB.Preload("Materials").Find(&categories).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve categories"})
 		return
 	}
 
 	var resp struct {
-		OrderBoms []models.OrderBom
-		Slug	  string
+		Categories          []models.Category
+		PurchaseSuggestions []models.PurchaseSuggestion
+		Slug                string
+		PORefs              []models.PORef
 	}
 
-	resp.OrderBoms = orderBoms
+	resp.Categories = categories
+	resp.PurchaseSuggestions = purchaseSuggestions
+	resp.PORefs = poRefs
 	if err := prc.RequestSlug(&resp.Slug, prc.DB, "withdrawals"); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Slug", "detail": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, resp)
 }
-
 
 // CreatePurchaseRequisition handles the creation of a new PurchaseRequisition.
 func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Context) {
@@ -60,27 +75,26 @@ func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Conte
 		return
 	}
 	var request struct {
-		Slug string `json:"Slug"`
-		Notes string `json:"Notes"`
+		Slug              string                    `json:"Slug"`
+		Notes             string                    `json:"Notes"`
 		PurchaseMaterials []models.PurchaseMaterial `json:"PurchaseMaterials"`
-		PORefs []string `json:"PORefs"`
+		PORefs            []string                  `json:"PORefs"`
 	}
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	
 	var poRefs []models.PORef
 	for _, slug := range request.PORefs {
-		po := models.PORef {
+		po := models.PORef{
 			Slug: slug,
 		}
 		if err := prc.DB.
 			Where("slug = ?", slug).
 			FirstOrCreate(&po).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create poRef"})
-			return	
+			return
 		}
 
 		poRefs = append(poRefs, po)
@@ -88,19 +102,18 @@ func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Conte
 
 	// create Purchase
 	purchase := models.Purchase{
-		Slug: request.Slug,
-		Notes: request.Notes,
+		Slug:        request.Slug,
+		Notes:       request.Notes,
 		CreatedByID: member.ID,
-		PORefs: poRefs,
+		PORefs:      poRefs,
 	}
 	if err := prc.DB.Create(&purchase).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H {
+	c.JSON(http.StatusOK, gin.H{
 		"purchase": purchase,
 	})
-
 
 	// for i, rm := range request.PurchaseMaterials {
 	// 	material := models.Material{}
@@ -117,8 +130,6 @@ func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Conte
 	// 		return
 	// 	}
 	// }
-
-	
 
 	// c.JSON(http.StatusOK, purchase)
 

@@ -40,3 +40,12 @@ func (Withdrawal) GenerateSlug() Slugger {
 		Value:     0,
 	}
 }
+
+func (Purchase) GenerateSlug() Slugger {
+	return Slugger{
+		TableName: "purchases",
+		Prefix:    "PR-",
+		Pad:       7,
+		Value:     0,
+	}
+}

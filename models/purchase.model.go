@@ -18,3 +18,8 @@ type PORef struct {
 	Slug string `gorm:"unique"`
 	Purchases []Purchase `gorm:"many2many:purchase_po_refs;"`
 }
+
+type PurchasePORefs struct {
+	PurchaseID  int `gorm:"primaryKey"`
+	PORefID int `gorm:"primaryKey"`
+}
