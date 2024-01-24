@@ -44,19 +44,32 @@ func (mc *TransactionController) GetTransactionsGroupByInventory(c *gin.Context)
 	c.JSON(http.StatusOK, inventories)
 }
 
-// / get transactions by PONumber
-func (mc *TransactionController) GetTransactionsByPONumber(c *gin.Context) {
-	ponumber := c.Param("id")
-	var transaction []models.AppLog
+// / get inventory material transactions by receipt.PONumber
+func (mc *TransactionController) GetInventoryMaterialTransactionsByPONumber(c *gin.Context) {
+	ponumber := c.Param("poNumber")
+	var ivtMats []models.InventoryMaterial
 	if err := mc.
 		DB.
-		Preload("Inventory").
-		Preload("Material").
-		Preload("Receipt").
+		Joins("Receipt").
 		Where("po_number = ?", ponumber).
-		Find(&transaction).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get transaction"})
+		Find(&ivtMats).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get inventory material transactions"})
 		return
 	}
-	c.JSON(http.StatusOK, transaction)
+
+	var ivtIDs []uint
+	for _, ivtMat := range ivtMats {
+		ivtIDs = append(ivtIDs, ivtMat.ID)
+	}
+
+	var transactions []models.InventoryMaterialTransaction
+	if err := mc.
+		DB.
+		Where("inventory_material_id IN ?", ivtIDs).
+		Find(&transactions).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get inventory material transactions"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"transactions": transactions, "ivtIDs": ivtIDs})
 }

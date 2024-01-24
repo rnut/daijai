@@ -74,7 +74,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		transactionController := controllers.NewTransactionController(db)
 		transactions.GET("", transactionController.GetTransactions)
 		transactions.GET("/inventories", transactionController.GetTransactionsGroupByInventory)
-		transactions.GET("/po/:id", transactionController.GetTransactionsByPONumber)
+		transactions.GET("/po/:poNumber", transactionController.GetInventoryMaterialTransactionsByPONumber)
 		// transactions.POST("", transactionController.CreateTransaction)
 		// transactions.GET("/:id", transactionController.GetTransactionByID)
 		// transactions.PUT("/:id", transactionController.UpdateTransaction)
@@ -131,7 +131,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		pr.POST("", ctrl.CreatePurchaseRequisition)
 		pr.GET("", ctrl.GetAllPurchaseRequisition)
 		pr.GET("/new/info", ctrl.GetNewPRInfo)
-		pr.GET("/:id", ctrl.GetPurchaseRequisition)
+		pr.GET("/:slug", ctrl.GetPurchaseRequisition)
 		pr.PUT("/:id", ctrl.UpdatePurchaseRequisition)
 		pr.DELETE("/:id", ctrl.DeletePurchaseRequisition)
 	}

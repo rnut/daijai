@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"daijai/models"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -78,120 +79,96 @@ func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Conte
 		Slug              string                    `json:"Slug"`
 		Notes             string                    `json:"Notes"`
 		PurchaseMaterials []models.PurchaseMaterial `json:"PurchaseMaterials"`
-		PORefs            []string                  `json:"PORefs"`
+		PORefs            []models.PORef            `json:"PORefs"`
 	}
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	var poRefs []models.PORef
-	for _, slug := range request.PORefs {
-		po := models.PORef{
-			Slug: slug,
+	if err := prc.DB.Transaction(func(tx *gorm.DB) error {
+		// create Purchase
+		purchase := models.Purchase{
+			Slug:        request.Slug,
+			Notes:       request.Notes,
+			CreatedByID: member.ID,
+			PORefs:      request.PORefs,
 		}
-		if err := prc.DB.
-			Where("slug = ?", slug).
-			FirstOrCreate(&po).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create poRef"})
-			return
+		if err := tx.Create(&purchase).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return err
 		}
 
-		poRefs = append(poRefs, po)
+		// create purchaseMaterials
+		for _, v := range request.PurchaseMaterials {
+			prm := models.PurchaseMaterial{
+				PurchaseID: purchase.ID,
+				MaterialID: v.MaterialID,
+				Quantity:   v.Quantity,
+			}
+			if err := tx.Create(&prm).Error; err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Order"})
+		log.Println(err)
 	}
 
-	// create Purchase
-	purchase := models.Purchase{
-		Slug:        request.Slug,
-		Notes:       request.Notes,
-		CreatedByID: member.ID,
-		PORefs:      poRefs,
-	}
-	if err := prc.DB.Create(&purchase).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"purchase": purchase,
-	})
-
-	// for i, rm := range request.PurchaseMaterials {
-	// 	material := models.Material{}
-	// 	if err := prc.DB.First(&material, rm.MaterialID).Error; err != nil {
-	// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	// 		return
-	// 	}
-	// 	if err := prc.DB.Save(&material).Error; err != nil {
-	// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	// 		return
-	// 	}
-	// 	if err := prc.DB.Save(&request.PurchaseMaterials[i]).Error; err != nil {
-	// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	// 		return
-	// 	}
-	// }
-
-	// c.JSON(http.StatusOK, purchase)
-
-	// request.CreatedByID = member.ID
-	// if err := prc.DB.Transaction(func(tx *gorm.DB) error {
-	// 	if err := tx.Create(&request).Error; err != nil {
-	// 		return err
-	// 	}
-
-	// 	// Update the associated materials' quantity
-	// 	for i, rm := range request.PurchaseMaterials {
-	// 		material := models.Material{}
-	// 		if err := prc.DB.First(&material, rm.MaterialID).Error; err != nil {
-	// 			return err
-	// 		}
-
-	// 		// Update the material's quantity
-	// 		// material.IncomingQuantity += rm.Quantity
-
-	// 		if err := tx.Save(&material).Error; err != nil {
-	// 			tx.Rollback()
-	// 			return err
-	// 		}
-
-	// 		// set material back to withdrawalMaterials
-	// 		request.PurchaseMaterials[i].Material = material
-
-	// 		if err := tx.Save(&request.PurchaseMaterials[i]).Error; err != nil {
-	// 			return err
-	// 		}
-	// 	}
-
-	// 	return nil
-	// }); err != nil {
-	// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create pr"})
-	// 	return
-	// }
-
-	// c.JSON(http.StatusCreated, gin.H{"message": "PurchaseRequisition created successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "PurchaseRequisition created successfully"})
 }
 
-// GetPurchaseRequisition retrieves a PurchaseRequisition by ID.
+// GetPurchaseRequisition retrieves a PurchaseRequisition by Slug.
 func (prc *PurchaseRequisitionController) GetPurchaseRequisition(c *gin.Context) {
-	objID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Withdrawal ID"})
-		return
-	}
+	slug := c.Param("slug")
 
 	var purchaseRequisition models.Purchase
 	if err := prc.
 		DB.
-		Preload("PurchaseMaterials.Material.Category").
+		Preload("PurchaseMaterials.Material").
+		Preload("PORefs").
 		Preload("CreatedBy").
-		Preload("Project").
-		First(&purchaseRequisition, objID).
+		First(&purchaseRequisition, "slug = ?", slug).
 		Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "PurchaseRequisition not found"})
 		return
 	}
 
-	c.JSON(http.StatusOK, purchaseRequisition)
+	var poRefs []string
+	for _, v := range purchaseRequisition.PORefs {
+		poRefs = append(poRefs, v.Slug)
+	}
+
+	var ivtMats []models.InventoryMaterial
+	if err := prc.
+		DB.
+		Joins("Receipt").
+		Where("po_number IN (?)", poRefs).
+		Find(&ivtMats).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get inventory material transactions"})
+		return
+	}
+
+	var ivtIDs []uint
+	for _, ivtMat := range ivtMats {
+		ivtIDs = append(ivtIDs, ivtMat.ID)
+	}
+
+	var transactions []models.InventoryMaterialTransaction
+	if err := prc.
+		DB.
+		Where("inventory_material_id IN ?", ivtIDs).
+		Find(&transactions).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get inventory material transactions"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"purchaseRequisition": purchaseRequisition,
+		"transactions":        transactions,
+	})
 }
 
 func (pc *PurchaseRequisitionController) GetAllPurchaseRequisition(c *gin.Context) {
@@ -208,15 +185,14 @@ func (pc *PurchaseRequisitionController) GetAllPurchaseRequisition(c *gin.Contex
 	var ps []models.Purchase
 	q := pc.DB.
 		Preload("PurchaseMaterials.Material.Category").
-		Preload("CreatedBy").
-		Preload("Project")
+		Preload("CreatedBy")
 	if member.Role == "admin" {
 		q.Find(&ps)
 	} else {
 		q.Find(&ps, "created_by_id = ?", member.ID)
 	}
 	if err := q.Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve projects"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve purchase requisitions"})
 		return
 	}
 	c.JSON(http.StatusOK, ps)
