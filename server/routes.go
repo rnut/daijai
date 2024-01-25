@@ -187,6 +187,12 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		slugs.GET("/:slug", ctrl.GetSlug)
 	}
 
+	notifications := router.Group("notifications")
+	{
+		ctrl := controllers.NewNotificationController(db)
+		notifications.GET("", ctrl.GetNotifications)
+	}
+
 	router.Static("/image", "./public")
 
 	return router
