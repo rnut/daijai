@@ -41,6 +41,7 @@ func main() {
 		&models.PORef{},
 		&models.Slugger{},
 		&models.User{},
+		&models.Notification{},
 	}
 	for _, table := range tables {
 		migrator.DropTable(table)

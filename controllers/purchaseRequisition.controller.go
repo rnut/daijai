@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"daijai/models"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -111,6 +112,28 @@ func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Conte
 				return err
 			}
 		}
+
+		// create notifications
+		title := fmt.Sprintf("New PR was create by %s", member.FullName)
+		subtitle := fmt.Sprintf("please check PR %s to see more details", purchase.Slug)
+		notif := models.Notification{
+			Type:      models.NotificationType_TOPIC,
+			BadgeType: models.NotificationBadgeType_INFO,
+			Title:     title,
+			Subtitle:  subtitle,
+			Body:      purchase.Slug,
+			Action:    models.NotificationAction_NEW_PR,
+			Icon:      "https://i.imgur.com/R3uJ7BF.png",
+			Cover:     "https://i.imgur.com/R3uJ7BF.png",
+			IsRead:    false,
+			IsSeen:    false,
+			Topic:     models.NotificationTopic_ADMIN,
+		}
+		if err := tx.Create(&notif).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return err
+		}
+
 		return nil
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Order"})

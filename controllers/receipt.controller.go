@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"daijai/models"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -44,6 +45,27 @@ func (rc *ReceiptController) CreateReceipt(c *gin.Context) {
 		if err := tx.Create(&request).Error; err != nil {
 			return err
 		}
+
+		title := fmt.Sprintf("Receipt was create by %s", member.FullName)
+		subtitle := fmt.Sprintf("please check PR %s to see more details", request.Slug)
+		notif := models.Notification{
+			Type:      models.NotificationType_TOPIC,
+			BadgeType: models.NotificationBadgeType_INFO,
+			Title:     title,
+			Subtitle:  subtitle,
+			Body:      request.Slug,
+			Action:    models.NotificationAction_NEW_RECEIPT,
+			Icon:      "https://i.imgur.com/R3uJ7BF.png",
+			Cover:     "https://i.imgur.com/R3uJ7BF.png",
+			IsRead:    false,
+			IsSeen:    false,
+			Topic:     models.NotificationTopic_MANAGER,
+		}
+		if err := tx.Create(&notif).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return err
+		}
+
 		return nil
 	}); err != nil {
 		log.Println(err)
@@ -131,6 +153,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			DB.
 			Joins("Bom").
 			Joins("Order").
+			Preload("Bom.Material").
 			Where("is_full_filled = ?", false).
 			Where("withdraw_status IN (?)", withdrawStatuses).
 			Where("material_id IN ?", matIDs).
@@ -226,7 +249,37 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 				return err
 			}
 
+			// update material quantity
 			matQuantity[matID] -= quantity
+
+			// create notification
+
+			var withdrawal models.Withdrawal
+			if err := tx.
+				Where("order_id = ?", orderBom.OrderID).
+				First(&withdrawal).Error; err != nil {
+				return err
+			}
+			title := fmt.Sprintf("%s has been restock", orderBom.Bom.Material.Title)
+			subtitle := "please check withdrawal request to see more details"
+			notif := models.Notification{
+				Type:      models.NotificationType_USER,
+				BadgeType: models.NotificationBadgeType_INFO,
+				Title:     title,
+				Subtitle:  subtitle,
+				Body:      withdrawal.Slug,
+				Action:    models.NotificationAction_RESTOCK,
+				Icon:      "https://i.imgur.com/R3uJ7BF.png",
+				Cover:     "https://i.imgur.com/R3uJ7BF.png",
+				IsRead:    false,
+				IsSeen:    false,
+				Topic:     models.NotificationTopic_None,
+				UserID:    &withdrawal.CreatedByID,
+			}
+			if err := tx.Create(&notif).Error; err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return err
+			}
 		}
 
 		// update receipt status and approved by
@@ -237,9 +290,6 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			return err
 		}
 
-		// update filled order boms
-		log.Print("filledOrderBomIDs: ")
-		log.Println(filledOrderBomIDs)
 		if len(filledOrderBomIDs) > 0 {
 			if err := tx.
 				Model(&models.PurchaseSuggestion{}).
@@ -248,6 +298,27 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 				Error; err != nil {
 				return err
 			}
+		}
+
+		title := fmt.Sprintf("Receipt was approved by %s", member.FullName)
+		subtitle := fmt.Sprintf("please check receipt %s to see more details", receipt.Slug)
+		notif := models.Notification{
+			Type:      models.NotificationType_USER,
+			BadgeType: models.NotificationBadgeType_INFO,
+			Title:     title,
+			Subtitle:  subtitle,
+			Body:      receipt.Slug,
+			Action:    models.NotificationAction_APPROVED_RECEIPT,
+			Icon:      "https://i.imgur.com/R3uJ7BF.png",
+			Cover:     "https://i.imgur.com/R3uJ7BF.png",
+			IsRead:    false,
+			IsSeen:    false,
+			Topic:     models.NotificationTopic_None,
+			UserID:    &receipt.CreatedByID,
+		}
+		if err := tx.Create(&notif).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return err
 		}
 
 		return nil

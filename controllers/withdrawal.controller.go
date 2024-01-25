@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"daijai/models"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -120,18 +121,18 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 		withdrawal.ProjectID = uint(request.ProjectID)
 		withdrawal.Notes = request.Notes
 		withdrawal.CreatedByID = member.ID
-		
+
 		if err := wc.DB.Create(&withdrawal).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Can not create Withdraw"})
 			return err
 		}
-		
+
 		for _, ob := range *order.OrderBoms {
-			withdrawTransaction := models.WithdrawalTransaction {
+			withdrawTransaction := models.WithdrawalTransaction{
 				WithdrawalID: withdrawal.ID,
-				OrderBomID: ob.ID,
-				Quantity: ob.ReservedQty,
-				Status: models.WithdrawalTransactionStatus_InProgress,
+				OrderBomID:   ob.ID,
+				Quantity:     ob.ReservedQty,
+				Status:       models.WithdrawalTransactionStatus_InProgress,
 			}
 
 			if err := wc.DB.Create(&withdrawTransaction).Error; err != nil {
@@ -141,7 +142,27 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 			ts = append(ts, withdrawTransaction)
 		}
 
-			
+		// create notification
+		title := fmt.Sprintf("%s was created withdrawal request", member.FullName)
+		subtitle := "please check withdrawal request to see more details"
+		notif := models.Notification{
+			Type:      models.NotificationType_TOPIC,
+			BadgeType: models.NotificationBadgeType_INFO,
+			Title:     title,
+			Subtitle:  subtitle,
+			Body:      withdrawal.Slug,
+			Action:    models.NotificationAction_NEW_WITHDRAWAL,
+			Icon:      "https://i.imgur.com/R3uJ7BF.png",
+			Cover:     "https://i.imgur.com/R3uJ7BF.png",
+			IsRead:    false,
+			IsSeen:    false,
+			Topic:     models.NotificationTopic_ADMIN,
+		}
+		if err := tx.Create(&notif).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return err
+		}
+
 		return nil
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Withdraw"})
@@ -317,6 +338,28 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 		}
 
 		if err := tx.Save(&order).Error; err != nil {
+			return err
+		}
+
+		// create notification
+		title := fmt.Sprintf("Withdrawal %s has been approved", withdrawal.Slug)
+		subtitle := "please check withdrawal request to see more details"
+		notif := models.Notification{
+			Type:      models.NotificationType_USER,
+			BadgeType: models.NotificationBadgeType_INFO,
+			Title:     title,
+			Subtitle:  subtitle,
+			Body:      withdrawal.Slug,
+			Action:    models.NotificationAction_APPROVED_WITHDRAWAL,
+			Icon:      "https://i.imgur.com/R3uJ7BF.png",
+			Cover:     "https://i.imgur.com/R3uJ7BF.png",
+			IsRead:    false,
+			IsSeen:    false,
+			Topic:     models.NotificationTopic_None,
+			UserID:    &withdrawal.CreatedByID,
+		}
+		if err := tx.Create(&notif).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return err
 		}
 
