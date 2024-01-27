@@ -15,7 +15,8 @@ type Order struct {
 	CreatedBy        Member `gorm:"foreignkey:CreatedByID"`
 	OrderBoms        *[]OrderBom
 	WithdrawStatus   string `gorm:"default:'ready'"` // ready, in-progress, complete
-	OrderReservings      *[]OrderReserving
+	OrderReservings  *[]OrderReserving
+	IsFG             bool `gorm:"default:false"`
 }
 
 type OrderBom struct {
@@ -33,7 +34,7 @@ type OrderBom struct {
 
 const (
 	OrderStatus_Ready      = "ready"
-	OrderStatus_Waiting = "wating"
+	OrderStatus_Waiting    = "wating"
 	OrderStatus_InProgress = "in-progress"
 	OrderStatus_Complete   = "complete"
 )

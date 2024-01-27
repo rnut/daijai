@@ -10,4 +10,5 @@ type Drawing struct {
 	Boms        []Bom  `form:"Bom"`
 	CreatedByID uint   `gorm:"not null"`
 	CreatedBy   Member `gorm:"foreignkey:CreatedByID"`
+	IsFG        bool   `gorm:"default:false"`
 }

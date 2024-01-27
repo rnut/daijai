@@ -8,4 +8,5 @@ type Category struct {
 	Title     string
 	Subtitle  string
 	Materials []Material
+	IsFG      bool `gorm:"default:false"`
 }

@@ -103,7 +103,23 @@ func (dc *DrawingController) CreateDrawing(c *gin.Context) {
 func (dc *DrawingController) GetDrawings(c *gin.Context) {
 	var drawings []models.Drawing
 
-	if err := dc.DB.Preload("Boms.Material.Category").Preload("CreatedBy").Find(&drawings).Error; err != nil {
+	// Retrieve the value of the "type" query parameter
+	drawingType := c.Query("type")
+	var isFG bool
+	if drawingType == models.MaterialType_FinishedGood {
+		isFG = true
+	} else {
+		isFG = false
+	}
+
+	// Use the drawingType value as needed
+
+	if err := dc.
+		DB.
+		Preload("Boms.Material.Category").
+		Preload("CreatedBy").
+		Where("is_fg = ?", isFG).
+		Find(&drawings).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve drawings"})
 		return
 	}

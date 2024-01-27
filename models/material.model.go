@@ -12,4 +12,10 @@ type Material struct {
 	Max        int64  `form:"Max"`
 	CategoryID uint   `json:"CategoryID" form:"CategoryID"`
 	Category   Category
+	IsFG       bool `gorm:"default:false"`
 }
+
+const (
+	MaterialType_FinishedGood = "fg"
+	MaterialType_BuiltIn      = "bi"
+)
