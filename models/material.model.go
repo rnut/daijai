@@ -19,3 +19,7 @@ const (
 	MaterialType_FinishedGood = "fg"
 	MaterialType_BuiltIn      = "bi"
 )
+
+const (
+	MaterialType_Param = "type"
+)

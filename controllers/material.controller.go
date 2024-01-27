@@ -55,6 +55,9 @@ func (mc *MaterialController) CreateMaterial(c *gin.Context) {
 	}
 	material.Max = max
 
+	isFG := c.Query("type") == models.MaterialType_FinishedGood
+	material.IsFG = isFG
+
 	// qty, err := strconv.ParseInt(c.Request.FormValue("Quantity"), 10, 64)
 	// if err != nil {
 	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Quantity"})

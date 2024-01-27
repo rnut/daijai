@@ -3,6 +3,10 @@ package main
 import (
 	"daijai/config"
 	"daijai/models"
+	"encoding/csv"
+	"fmt"
+	"os"
+	"strconv"
 
 	"gorm.io/gorm"
 )
@@ -49,10 +53,10 @@ func main() {
 	}
 
 	initUsers(config.DB)
-	initCategory(config.DB)
+	loadCategoriesFromCSV(config.DB, "./migrate/categories.csv")
+	loadMaterialsFromCSV(config.DB, "./migrate/materials.csv")
 	initInventory(config.DB)
 	initProject(config.DB)
-	initMaterial(config.DB)
 	initSlugger(config.DB)
 }
 
@@ -101,40 +105,6 @@ func initUsers(db *gorm.DB) {
 	}
 }
 
-func initCategory(db *gorm.DB) {
-	categories := []models.Category{
-		{
-			Slug:     "ไม่้บอร์ด",
-			Title:    "Furniture Material 1",
-			Subtitle: "Mock Furniture Material 1",
-		},
-		{
-			Slug:     "ปิดขอบ",
-			Title:    "Furniture Material 2",
-			Subtitle: "Mock Furniture Material 2",
-		},
-		{
-			Slug:     "น็อต สรู",
-			Title:    "Furniture Material 3",
-			Subtitle: "Mock Furniture Material 3",
-		},
-		{
-			Slug:     "มือจับ",
-			Title:    "Furniture Material 4",
-			Subtitle: "Mock Furniture Material 4",
-		},
-		{
-			Slug:     "ลิ้นชัก",
-			Title:    "Furniture Material 5",
-			Subtitle: "Mock Furniture Material 5",
-		},
-	}
-
-	for _, category := range categories {
-		db.Create(&category)
-	}
-}
-
 func initInventory(db *gorm.DB) {
 	inventories := []models.Inventory{
 		{
@@ -170,27 +140,85 @@ func initProject(db *gorm.DB) {
 	}
 }
 
-// init material model
-func initMaterial(db *gorm.DB) {
-	materials := []models.Material{
-		{
-			Slug:       "MAT-001",
-			Title:      "ไม้อัด 20mm",
-			Subtitle:   "ไม้ยางพาราอัด หน้าขาว",
-			Min:        10,
-			Max:        100,
-			CategoryID: 1,
-		},
-		{
-			Slug:       "MAT-002",
-			Title:      "ฟอเมก้า ปิดขอบ 2mm.",
-			Subtitle:   "สีไม้ ความยาว 20เมตร",
-			Min:        10,
-			Max:        100,
-			CategoryID: 1,
-		},
+func loadCategoriesFromCSV(db *gorm.DB, filePath string) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open CSV file: %w", err)
 	}
-	for _, mat := range materials {
-		db.Create(&mat)
+	defer file.Close()
+
+	// Create a new CSV reader
+	reader := csv.NewReader(file)
+
+	// Read the CSV records
+	records, err := reader.ReadAll()
+	if err != nil {
+		return fmt.Errorf("failed to read CSV records: %w", err)
 	}
+
+	// Process each record
+	for _, record := range records {
+		slug := record[0]
+		title := record[1]
+		subtitle := record[2]
+		isFG, _ := strconv.ParseBool(record[3])
+
+		category := models.Category{
+			Slug:     slug,
+			Title:    title,
+			Subtitle: subtitle,
+			IsFG:     isFG,
+		}
+
+		if err := db.Create(&category).Error; err != nil {
+			return fmt.Errorf("failed to save material to database: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func loadMaterialsFromCSV(db *gorm.DB, filePath string) error {
+	// Open the CSV file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open CSV file: %w", err)
+	}
+	defer file.Close()
+
+	// Create a new CSV reader
+	reader := csv.NewReader(file)
+
+	// Read the CSV records
+	records, err := reader.ReadAll()
+	if err != nil {
+		return fmt.Errorf("failed to read CSV records: %w", err)
+	}
+
+	// Process each record
+	for _, record := range records {
+		slug := record[0]
+		title := record[1]
+		subtitle := record[2]
+		categoryID, _ := strconv.Atoi(record[3])
+		isFG, _ := strconv.ParseBool(record[4])
+
+		// Create a new material object
+		material := models.Material{
+			Slug:       slug,
+			Title:      title,
+			Subtitle:   subtitle,
+			Min:        0,
+			Max:        0,
+			CategoryID: uint(categoryID),
+			IsFG:       isFG,
+		}
+
+		// Save the material to the database
+		if err := db.Create(&material).Error; err != nil {
+			return fmt.Errorf("failed to save material to database: %w", err)
+		}
+	}
+
+	return nil
 }
