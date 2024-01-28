@@ -57,7 +57,7 @@ func (prc *PurchaseRequisitionController) GetNewPRInfo(c *gin.Context) {
 	resp.Categories = categories
 	resp.PurchaseSuggestions = purchaseSuggestions
 	resp.PORefs = poRefs
-	if err := prc.RequestSlug(&resp.Slug, prc.DB, "withdrawals"); err != nil {
+	if err := prc.RequestSlug(&resp.Slug, prc.DB, "purchases"); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Slug", "detail": err.Error()})
 		return
 	}

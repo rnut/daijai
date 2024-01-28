@@ -66,6 +66,7 @@ func initSlugger(db *gorm.DB) {
 		&models.Order{},
 		&models.Withdrawal{},
 		&models.Purchase{},
+		&models.Receipt{},
 	}
 	for _, m := range slugables {
 		slug := m.GenerateSlug()

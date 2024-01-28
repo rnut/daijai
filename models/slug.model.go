@@ -49,3 +49,11 @@ func (Purchase) GenerateSlug() Slugger {
 		Value:     0,
 	}
 }
+func (Receipt) GenerateSlug() Slugger {
+	return Slugger{
+		TableName: "receipts",
+		Prefix:    "RCP-",
+		Pad:       7,
+		Value:     0,
+	}
+}
