@@ -47,6 +47,38 @@ func (rc *ReceiptController) GetNewReceiptInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func (rc *ReceiptController) GetEditReceiptInfo(c *gin.Context) {
+	var response struct {
+		Recipt     models.Receipt
+		Categories []models.Category
+	}
+
+	var categories []models.Category
+	if err := rc.DB.
+		Preload("Materials").
+		Find(&categories).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Categories"})
+		return
+	}
+
+	response.Categories = categories
+
+	slug := c.Param("slug")
+	var receipt models.Receipt
+	if err := rc.DB.
+		Preload("ReceiptMaterials.Material").
+		Preload("ReceiptMaterials.Material.Category").
+		Where("slug = ?", slug).
+		First(&receipt).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
+		return
+	}
+
+	response.Recipt = receipt
+
+	c.JSON(http.StatusOK, response)
+}
+
 // CreateReceipt creates a new Receipt entry.
 func (rc *ReceiptController) CreateReceipt(c *gin.Context) {
 	var uid uint
@@ -435,7 +467,22 @@ func (rc *ReceiptController) GetReceiptBySlug(c *gin.Context) {
 
 // UpdateReceipt updates a Receipt by ID.
 func (rc *ReceiptController) UpdateReceipt(c *gin.Context) {
-	id := c.Param("id")
+	slug := c.Param("slug")
+
+	var receipt models.Receipt
+	if err := rc.
+		DB.
+		Where("slug = ?", slug).
+		Preload("ReceiptMaterials").
+		First(&receipt).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
+		return
+	}
+
+	if receipt.IsApproved {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Receipt already approved"})
+		return
+	}
 
 	var request models.Receipt
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -443,18 +490,42 @@ func (rc *ReceiptController) UpdateReceipt(c *gin.Context) {
 		return
 	}
 
-	var receipt models.Receipt
-	if err := rc.DB.First(&receipt, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
+	if err := rc.DB.Transaction(func(tx *gorm.DB) error {
+		receipt.Notes = request.Notes
+		receipt.PORefNumber = request.PORefNumber
+		if err := rc.DB.Save(&receipt).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update Receipt"})
+			return err
+		}
+		for _, v := range receipt.ReceiptMaterials {
+			if err := rc.DB.Delete(&v).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update Receipt"})
+				return err
+			}
+		}
+
+		for _, v := range request.ReceiptMaterials {
+			receiptMaterial := models.ReceiptMaterial{
+				ReceiptID:  receipt.ID,
+				MaterialID: v.MaterialID,
+				Quantity:   v.Quantity,
+				Price:      v.Price,
+				IsApproved: v.IsApproved,
+			}
+			if err := rc.DB.Save(&receiptMaterial).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update Receipt"})
+				return err
+			}
+		}
+		return nil
+
+	}); err != nil {
+		log.Println(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Receipt"})
 		return
 	}
 
-	if err := rc.DB.Save(&receipt).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update Receipt"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Receipt updated successfully", "receipt": receipt})
+	c.JSON(http.StatusOK, request)
 }
 
 // DeleteReceipt deletes a Receipt by ID.

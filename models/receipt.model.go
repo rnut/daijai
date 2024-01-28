@@ -6,10 +6,7 @@ type Receipt struct {
 	gorm.Model
 	Slug             string `gorm:"unique"`
 	Notes            string
-	ProjectID        *uint
-	Project          *Project
-	PONumber         string
-	InvoiceID        string
+	PORefNumber      string
 	RecipientID      *uint
 	Recipient        *Member
 	IsApproved       bool

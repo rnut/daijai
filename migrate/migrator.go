@@ -25,7 +25,6 @@ func main() {
 		&models.OrderBom{},
 		&models.OrderReserving{},
 		&models.WithdrawalTransaction{},
-		&models.Receipt{},
 		&models.InventoryMaterial{},
 		&models.InventoryMaterialTransaction{},
 		&models.PurchaseSuggestion{},
@@ -44,6 +43,7 @@ func main() {
 		&models.Purchase{},
 		&models.PORef{},
 		&models.Slugger{},
+		&models.Receipt{},
 		&models.User{},
 		&models.Notification{},
 	}
