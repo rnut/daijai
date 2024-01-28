@@ -105,7 +105,7 @@ func (dc *DrawingController) CreateDrawing(c *gin.Context) {
 func (dc *DrawingController) GetDrawings(c *gin.Context) {
 	var drawings []models.Drawing
 
-	drawingType := c.Query("type")
+	drawingType := c.Query(models.MaterialType_Param)
 	isFG := drawingType == models.MaterialType_FinishedGood
 
 	// Use the drawingType value as needed

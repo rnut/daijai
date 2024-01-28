@@ -61,6 +61,7 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 	order.Drawing = drawing
 	order.ProjectID = uint(request.ProjectID)
 	order.Notes = request.Notes
+	order.IsFG = request.IsFG
 
 	if err := odc.DB.Transaction(func(tx *gorm.DB) error {
 		order.CreatedByID = member.ID
@@ -180,12 +181,16 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 
 // / get all orders
 func (odc *OrderController) GetOrders(c *gin.Context) {
+	materialType := c.Query(models.MaterialType_Param)
+	isFG := materialType == models.MaterialType_FinishedGood
+
 	var orders []models.Order
 	if err := odc.
 		DB.
 		Preload("Drawing").
 		Preload("CreatedBy").
 		Preload("OrderBoms").
+		Where("is_fg = ?", isFG).
 		Find(&orders).
 		Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Orders"})
@@ -211,15 +216,23 @@ func (odc *OrderController) GetOrderBySlug(c *gin.Context) {
 }
 
 func (odc *OrderController) GetNewOrderInfo(c *gin.Context) {
+	materialType := c.Query(models.MaterialType_Param)
+	isFG := materialType == models.MaterialType_FinishedGood
+
 	// get projects
 	var projects []models.Project
-	if err := odc.DB.Find(&projects).Error; err != nil {
+	if err := odc.
+		DB.
+		Find(&projects).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Projects"})
 		return
 	}
 	// get drawings
 	var drawings []models.Drawing
-	if err := odc.DB.Find(&drawings).Error; err != nil {
+	if err := odc.
+		DB.
+		Where("is_fg = ?", isFG).
+		Find(&drawings).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Drawings"})
 		return
 	}
