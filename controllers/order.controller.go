@@ -41,6 +41,7 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 		ProducedQuantity int64
 		ProjectID        int64
 		Notes            string
+		IsFG             bool
 	}
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -78,7 +79,7 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 				Find(&inventoryMaterials).Error; err != nil {
 				return err
 			}
-			
+
 			target := bom.Quantity * order.ProducedQuantity
 
 			var orderBom models.OrderBom
@@ -139,7 +140,6 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 				orderReserving.InventoryMaterialID = mat.ID
 				orderReserving.Quantity = rQty
 				orderReserving.Status = models.OrderReservingStatus_Reserved
-
 
 				if err := tx.Create(&orderReserving).Error; err != nil {
 					return err

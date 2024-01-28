@@ -55,30 +55,8 @@ func (mc *MaterialController) CreateMaterial(c *gin.Context) {
 	}
 	material.Max = max
 
-	isFG := c.Query("type") == models.MaterialType_FinishedGood
+	isFG, _ := strconv.ParseBool(c.Request.FormValue("IsFG"))
 	material.IsFG = isFG
-
-	// qty, err := strconv.ParseInt(c.Request.FormValue("Quantity"), 10, 64)
-	// if err != nil {
-	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Quantity"})
-	// 	return
-	// }
-	// material.Quantity = qty
-
-	// iuQt, err := strconv.ParseInt(c.Request.FormValue("InUseQuantity"), 10, 64)
-	// if err != nil {
-	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid InUseQuantity"})
-	// 	return
-	// }
-	// material.InUseQuantity = iuQt
-
-	// icQt, err := strconv.ParseInt(c.Request.FormValue("InUseQuantity"), 10, 64)
-	// if err != nil {
-	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid IncomingQuantity"})
-	// 	return
-	// }
-	// material.IncomingQuantity = icQt
-	// material.Supplier = c.Request.FormValue("Supplier")
 
 	_, header, err := c.Request.FormFile("image")
 	if err != nil {

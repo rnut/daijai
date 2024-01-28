@@ -41,10 +41,14 @@ func (dc *DrawingController) CreateDrawing(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
 	drw.CreatedByID = member.ID
 	drw.CreatedBy = member
 	drw.Slug = c.Request.FormValue("Slug")
 	drw.PartNumber = c.Request.FormValue("PartNumber")
+
+	isFG, _ := strconv.ParseBool(c.Request.FormValue("IsFG"))
+	drw.IsFG = isFG
 
 	if err := dc.DB.Transaction(func(tx *gorm.DB) error {
 		// Save uploaded image
@@ -65,8 +69,6 @@ func (dc *DrawingController) CreateDrawing(c *gin.Context) {
 		var boms []models.Bom
 		mIDs := c.PostFormArray("Boms.MaterialID")
 		qts := c.PostFormArray("Boms.Quantity")
-		log.Println(mIDs)
-		log.Println(qts)
 
 		for i := 0; i < len(mIDs); i++ {
 			mID, err := strconv.ParseUint(mIDs[i], 10, 64)
