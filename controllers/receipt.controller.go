@@ -418,23 +418,6 @@ func (rc *ReceiptController) GetAllReceipts(c *gin.Context) {
 	c.JSON(http.StatusOK, receipts)
 }
 
-// GetReceipt gets a Receipt by ID.
-func (rc *ReceiptController) GetReceipt(c *gin.Context) {
-	id := c.Param("id")
-
-	var receipt models.Receipt
-	if err := rc.
-		DB.
-		Preload("ReceiptMaterials.Material.Category").
-		Preload("CreatedBy").
-		First(&receipt, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
-		return
-	}
-
-	c.JSON(http.StatusOK, receipt)
-}
-
 // GET Recript by slug
 func (rc *ReceiptController) GetReceiptBySlug(c *gin.Context) {
 	slug := c.Param("slug")
@@ -457,6 +440,7 @@ func (rc *ReceiptController) GetReceiptBySlug(c *gin.Context) {
 		Preload("Material").
 		Preload("Inventory").
 		Preload("Transactions.Order.Drawing").
+		Preload("Transactions.Withdrawal.CreatedBy").
 		Find(&inventoryMaterials, "receipt_id = ?", receipt.ID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
 		return
