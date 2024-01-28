@@ -152,6 +152,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		ctrl := controllers.NewReceipt(db)
 		receipts.POST("", ctrl.CreateReceipt)
 		receipts.GET("", ctrl.GetAllReceipts)
+		receipts.GET("/new/info", ctrl.GetNewReceiptInfo)
 		receipts.GET("/:id", ctrl.GetReceipt)
 		receipts.GET("/details/:slug", ctrl.GetReceiptBySlug)
 		receipts.PUT("/:id", ctrl.UpdateReceipt)

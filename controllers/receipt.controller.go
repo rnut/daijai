@@ -21,6 +21,32 @@ func NewReceipt(db *gorm.DB) *ReceiptController {
 	}
 }
 
+func (rc *ReceiptController) GetNewReceiptInfo(c *gin.Context) {
+	var response struct {
+		Slug       string
+		Categories []models.Category
+	}
+
+	var categories []models.Category
+	if err := rc.DB.
+		Preload("Materials").
+		Find(&categories).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Categories"})
+		return
+	}
+
+	response.Categories = categories
+
+	var slug string
+	if err := rc.RequestSlug(&slug, rc.DB, "receipts"); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Slug", "detail": err.Error()})
+		return
+	}
+	response.Slug = slug
+
+	c.JSON(http.StatusOK, response)
+}
+
 // CreateReceipt creates a new Receipt entry.
 func (rc *ReceiptController) CreateReceipt(c *gin.Context) {
 	var uid uint
