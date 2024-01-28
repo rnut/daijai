@@ -167,12 +167,18 @@ func (dc *DrawingController) UpdateDrawing(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Drawing not found"})
 		return
 	}
+	var isFG bool
+	if isFG, err = strconv.ParseBool(c.Request.FormValue("IsFG")); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid IsFG"})
+		return
+	}
 
 	// UPDATE Drawing fields
 	drw.CreatedByID = member.ID
 	drw.CreatedBy = member
 	drw.Slug = c.Request.FormValue("Slug")
 	drw.PartNumber = c.Request.FormValue("PartNumber")
+	drw.IsFG = isFG
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ProducedQuantity"})
 		return
