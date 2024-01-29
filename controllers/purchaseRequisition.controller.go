@@ -168,7 +168,7 @@ func (prc *PurchaseRequisitionController) GetPurchaseRequisition(c *gin.Context)
 	if err := prc.
 		DB.
 		Joins("Receipt").
-		Where("po_number IN (?)", poRefs).
+		Where("po_ref_number IN (?)", poRefs).
 		Find(&ivtMats).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get inventory material transactions"})
 		return
@@ -182,6 +182,7 @@ func (prc *PurchaseRequisitionController) GetPurchaseRequisition(c *gin.Context)
 	var transactions []models.InventoryMaterialTransaction
 	if err := prc.
 		DB.
+		Preload("InventoryMaterial.Receipt").
 		Where("inventory_material_id IN ?", ivtIDs).
 		Find(&transactions).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get inventory material transactions"})

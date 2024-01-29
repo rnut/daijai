@@ -157,8 +157,16 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 		return
 	}
 	if err := rc.DB.Transaction(func(tx *gorm.DB) error {
-		var matIDs []uint
+		// create PORef
+		log.Println("create PORef:")
+		log.Println(receipt.PORefNumber)
+		var poRef models.PORef
+		poRef.Slug = receipt.PORefNumber
+		if err := tx.Create(&poRef).Error; err != nil {
+			return err
+		}
 
+		var matIDs []uint
 		matQuantity := make(map[uint]int64)
 		matInventoryId := make(map[uint]uint)
 		for _, v := range receipt.ReceiptMaterials {
