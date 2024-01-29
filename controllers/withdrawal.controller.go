@@ -30,6 +30,8 @@ func (wc *WithdrawalController) GetWithdrawalBySlug(c *gin.Context) {
 	var withdrawal models.Withdrawal
 	if err := wc.DB.
 		Preload("Project").
+		Preload("Order.Drawing").
+		Preload("Order.OrderBoms.Bom.Material").
 		Preload("CreatedBy").
 		Preload("ApprovedBy").
 		First(&withdrawal, "slug = ?", slug).Error; err != nil {
@@ -249,6 +251,8 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 	var withdrawal models.Withdrawal
 	if err := wc.DB.
 		Preload("Project").
+		Preload("Order.Drawing").
+		Preload("Order.OrderBoms.Bom.Material").
 		Preload("CreatedBy").
 		Preload("ApprovedBy").
 		Preload("WithdrawalTransactions", "withdrawal_transactions.status = ?", models.WithdrawalTransactionStatus_InProgress).
@@ -277,6 +281,13 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 	}
 
 	if err := wc.DB.Transaction(func(tx *gorm.DB) error {
+		// update withdrawal status
+		withdrawal.IsApproved = true
+		withdrawal.ApprovedByID = &member.ID
+		if err := tx.Save(&withdrawal).Error; err != nil {
+			return err
+		}
+
 		// update withdraw transactions
 		for _, wt := range *withdrawal.WithdrawalTransactions {
 			if wt.Status == models.WithdrawalTransactionStatus_InProgress {
@@ -375,7 +386,7 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Withdraw"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"order": order})
+	c.JSON(http.StatusOK, withdrawal)
 }
 
 // DeleteMaterial deletes a specific material by ID.
