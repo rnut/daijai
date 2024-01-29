@@ -214,7 +214,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 
 		// get waiting material order boms
 		var orderBoms []models.OrderBom
-		withdrawStatuses := []string{models.OrderStatus_Waiting, models.OrderStatus_InProgress}
+		withdrawStatuses := []string{models.OrderWithdrawStatus_Idle, models.OrderWithdrawStatus_Partial}
 		if err := rc.
 			DB.
 			Joins("Bom").
@@ -310,7 +310,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			}
 
 			// update order status to in-progress
-			orderBom.Order.WithdrawStatus = models.OrderStatus_InProgress
+			orderBom.Order.WithdrawStatus = models.OrderWithdrawStatus_Partial
 			if err := tx.Save(&orderBom.Order).Error; err != nil {
 				return err
 			}

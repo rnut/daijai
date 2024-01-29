@@ -54,6 +54,7 @@ func (wc *WithdrawalController) GetAllWithdrawals(c *gin.Context) {
 	var withdrawals []models.Withdrawal
 	q := wc.DB.
 		Preload("Project").
+		Preload("Order.Drawing").
 		Preload("CreatedBy").
 		Preload("ApprovedBy")
 	if member.Role == "technician" {
@@ -107,7 +108,7 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 		return
 	}
 
-	if order.WithdrawStatus != models.OrderStatus_Ready {
+	if order.WithdrawStatus != models.OrderWithdrawStatus_Pending {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Order is not ready to create withdrawal"})
 		return
 	}
@@ -124,6 +125,12 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 
 		if err := wc.DB.Create(&withdrawal).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Can not create Withdraw"})
+			return err
+		}
+
+		// update order status
+		order.WithdrawStatus = models.OrderWithdrawStatus_Idle
+		if err := tx.Save(&order).Error; err != nil {
 			return err
 		}
 
@@ -332,9 +339,9 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 
 		// update order
 		if isAllCompltelyWithdraw {
-			order.WithdrawStatus = models.OrderStatus_Complete
+			order.WithdrawStatus = models.OrderWithdrawStatus_Complete
 		} else {
-			order.WithdrawStatus = models.OrderStatus_Waiting
+			order.WithdrawStatus = models.OrderWithdrawStatus_Partial
 		}
 
 		if err := tx.Save(&order).Error; err != nil {
@@ -398,8 +405,8 @@ func (mc *WithdrawalController) GetNewWithdrawInfo(c *gin.Context) {
 	if err := mc.
 		DB.
 		Preload("Drawing").
+		Where("withdraw_status IN (?)", models.OrderWithdrawStatus_Pending).
 		Find(&orders).
-		Where("status = ?", "ready").
 		Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Orders"})
 		return
