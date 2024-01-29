@@ -158,11 +158,9 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 	}
 	if err := rc.DB.Transaction(func(tx *gorm.DB) error {
 		// create PORef
-		log.Println("create PORef:")
-		log.Println(receipt.PORefNumber)
 		var poRef models.PORef
 		poRef.Slug = receipt.PORefNumber
-		if err := tx.Create(&poRef).Error; err != nil {
+		if err := tx.FirstOrCreate(&poRef).Error; err != nil {
 			return err
 		}
 
@@ -190,6 +188,25 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			if err := tx.Save(&inventoryMaterial).Error; err != nil {
 				return err
 			}
+
+			// count
+			var counter struct {
+				Quantity   int64
+				Reserved   int64
+				Withdrawed int64
+			}
+			if err := tx.
+				Model(&models.InventoryMaterial{}).
+				Select("SUM(quantity) as quantity, SUM(reserve) as reserved, SUM(withdrawed) as withdrawed").
+				Where("material_id = ?", v.MaterialID).
+				Where("inventory_id = ?", receipt.InventoryID).
+				// Where("is_out_of_stock = ?", false).
+				Find(&counter).Error; err != nil {
+				return err
+			}
+
+			// update sum material inventory
+			rc.SumMaterial(tx, "receipt", v.MaterialID, receipt.InventoryID)
 
 			// assign hashmap
 			matQuantity[v.MaterialID] = v.Quantity
@@ -226,12 +243,6 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			Find(&orderBoms).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch OrderBoms"})
 			return err
-		}
-
-		for _, v := range orderBoms {
-			log.Println(v.ID)
-			log.Println(v.Order.Slug)
-
 		}
 
 		var filledOrderBomIDs []uint
@@ -318,8 +329,10 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			// update material quantity
 			matQuantity[matID] -= quantity
 
-			// create notification
+			invID := inventoryMaterial.InventoryID
+			rc.SumMaterial(tx, "fill-order-receipt", matID, invID)
 
+			// create notification
 			var withdrawal models.Withdrawal
 			if err := tx.
 				Where("order_id = ?", orderBom.OrderID).

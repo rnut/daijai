@@ -57,3 +57,43 @@ func (bc *BaseController) RequestSlug(slug *string, db *gorm.DB, table string) e
 	*slug = combinedValue
 	return nil
 }
+
+func (bc *BaseController) SumMaterial(db *gorm.DB, tag string, matID uint, invID uint) error {
+	// count
+	var counter struct {
+		Quantity   int64
+		Reserved   int64
+		Withdrawed int64
+	}
+	if err := db.
+		Model(&models.InventoryMaterial{}).
+		Select("SUM(quantity) as quantity, SUM(reserve) as reserved, SUM(withdrawed) as withdrawed").
+		Where("material_id = ?", matID).
+		Where("inventory_id = ?", invID).
+		Where("is_out_of_stock = ?", false).
+		Find(&counter).Error; err != nil {
+		return err
+	}
+
+	// update sum material inventory
+	var sumMaterialInventory models.SumMaterialInventory
+	if err := db.
+		Where("material_id = ?", matID).
+		Where("inventory_id = ?", invID).
+		FirstOrInit(&sumMaterialInventory).Error; err != nil {
+		return err
+	}
+	sumMaterialInventory.MaterialID = matID
+	sumMaterialInventory.InventoryID = invID
+	sumMaterialInventory.Quantity = counter.Quantity
+	sumMaterialInventory.Reserved = counter.Reserved
+	sumMaterialInventory.Withdrawed = counter.Withdrawed
+	if err := db.Save(&sumMaterialInventory).Error; err != nil {
+		return err
+	}
+
+	log.Printf("tag: %s", tag)
+	log.Printf("counter: %+v\n", counter)
+	log.Printf("sum: %+v\n", sumMaterialInventory)
+	return nil
+}

@@ -41,7 +41,6 @@ func (mc *CategoryController) GetCategories(c *gin.Context) {
 	var categories []models.Category
 
 	isFg := c.Query(models.MaterialType_Param) == models.MaterialType_FinishedGood
-
 	if err := mc.DB.
 		Preload("Materials").
 		Where("is_fg = ?", isFg).

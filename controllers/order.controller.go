@@ -153,6 +153,10 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 				if err := tx.Save(&mat).Error; err != nil {
 					return err
 				}
+
+				matID := mat.MaterialID
+				invID := mat.InventoryID
+				odc.SumMaterial(tx, "order", matID, invID)
 			}
 
 			orderBom.ReservedQty = totalReserve

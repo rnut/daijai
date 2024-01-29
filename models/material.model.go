@@ -13,6 +13,16 @@ type Material struct {
 	CategoryID uint   `json:"CategoryID" form:"CategoryID"`
 	Category   Category
 	IsFG       bool `gorm:"default:false"`
+	Sum        *SumMaterialInventory
+}
+
+type SumMaterialInventory struct {
+	gorm.Model
+	MaterialID  uint
+	InventoryID uint
+	Quantity    int64
+	Reserved    int64
+	Withdrawed  int64
 }
 
 const (

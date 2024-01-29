@@ -88,14 +88,18 @@ func (mc *MaterialController) CreateMaterial(c *gin.Context) {
 
 // GetMaterials returns a list of all materials.
 func (mc *MaterialController) GetMaterials(c *gin.Context) {
-	var materials []models.Material
-
-	if err := mc.DB.Preload("Category").Find(&materials).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve materials"})
+	var categories []models.Category
+	mainInventoryID := uint(1)
+	isFg := c.Query(models.MaterialType_Param) == models.MaterialType_FinishedGood
+	if err := mc.DB.
+		Preload("Materials.Sum", "inventory_id = ?", mainInventoryID).
+		Where("is_fg = ?", isFg).
+		Find(&categories).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve categories"})
 		return
 	}
 
-	c.JSON(http.StatusOK, materials)
+	c.JSON(http.StatusOK, categories)
 }
 
 // GetMaterialByID returns a specific material by ID.

@@ -346,6 +346,9 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 				return err
 			}
 
+			matID := reserve.InventoryMaterial.MaterialID
+			invID := reserve.InventoryMaterial.InventoryID
+			wc.SumMaterial(tx, "withdrawal", matID, invID)
 		}
 
 		// update order
