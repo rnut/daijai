@@ -204,6 +204,7 @@ func (odc *OrderController) GetOrderBySlug(c *gin.Context) {
 	slug := c.Param("slug")
 	if err := odc.
 		DB.
+		Preload("OrderBoms.Bom.Material").
 		Preload("Drawing").
 		Preload("CreatedBy").
 		Where("slug = ?", slug).
