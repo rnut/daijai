@@ -320,12 +320,6 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 				return err
 			}
 
-			// update order status to in-progress
-			orderBom.Order.WithdrawStatus = models.OrderWithdrawStatus_Partial
-			if err := tx.Save(&orderBom.Order).Error; err != nil {
-				return err
-			}
-
 			// update material quantity
 			matQuantity[matID] -= quantity
 
@@ -333,32 +327,32 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			rc.SumMaterial(tx, "fill-order-receipt", matID, invID)
 
 			// create notification
-			var withdrawal models.Withdrawal
-			if err := tx.
-				Where("order_id = ?", orderBom.OrderID).
-				First(&withdrawal).Error; err != nil {
-				return err
-			}
-			title := fmt.Sprintf("%s has been restock", orderBom.Bom.Material.Title)
-			subtitle := "please check withdrawal request to see more details"
-			notif := models.Notification{
-				Type:      models.NotificationType_USER,
-				BadgeType: models.NotificationBadgeType_INFO,
-				Title:     title,
-				Subtitle:  subtitle,
-				Body:      withdrawal.Slug,
-				Action:    models.NotificationAction_RESTOCK,
-				Icon:      "https://i.imgur.com/R3uJ7BF.png",
-				Cover:     "https://i.imgur.com/R3uJ7BF.png",
-				IsRead:    false,
-				IsSeen:    false,
-				Topic:     models.NotificationTopic_None,
-				UserID:    &withdrawal.CreatedByID,
-			}
-			if err := tx.Create(&notif).Error; err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-				return err
-			}
+			// var withdrawal models.Withdrawal
+			// if err := tx.
+			// 	Where("order_id = ?", orderBom.OrderID).
+			// 	First(&withdrawal).Error; err != nil {
+			// 	return err
+			// }
+			// title := fmt.Sprintf("%s has been restock", orderBom.Bom.Material.Title)
+			// subtitle := "please check withdrawal request to see more details"
+			// notif := models.Notification{
+			// 	Type:      models.NotificationType_USER,
+			// 	BadgeType: models.NotificationBadgeType_INFO,
+			// 	Title:     title,
+			// 	Subtitle:  subtitle,
+			// 	Body:      withdrawal.Slug,
+			// 	Action:    models.NotificationAction_RESTOCK,
+			// 	Icon:      "https://i.imgur.com/R3uJ7BF.png",
+			// 	Cover:     "https://i.imgur.com/R3uJ7BF.png",
+			// 	IsRead:    false,
+			// 	IsSeen:    false,
+			// 	Topic:     models.NotificationTopic_None,
+			// 	UserID:    &withdrawal.CreatedByID,
+			// }
+			// if err := tx.Create(&notif).Error; err != nil {
+			// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			// 	return err
+			// }
 		}
 
 		// update receipt status and approved by

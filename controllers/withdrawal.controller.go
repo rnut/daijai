@@ -31,11 +31,12 @@ func (wc *WithdrawalController) GetWithdrawalBySlug(c *gin.Context) {
 	if err := wc.DB.
 		Preload("Project").
 		Preload("Order.Drawing").
+		Preload("WithdrawalApprovements.WithdrawalTransactions.OrderReserving.OrderBom.Bom.Material").
+		Preload("WithdrawalApprovements.ApprovedBy").
 		Preload("Order.OrderBoms.Bom.Material").
 		Preload("CreatedBy").
-		Preload("ApprovedBy").
 		First(&withdrawal, "slug = ?", slug).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Withdrawal not found"})
+		c.JSON(http.StatusPreconditionRequired, gin.H{"error": "Withdrawal not found"})
 		return
 	}
 
@@ -57,13 +58,12 @@ func (wc *WithdrawalController) GetAllWithdrawals(c *gin.Context) {
 	q := wc.DB.
 		Preload("Project").
 		Preload("Order.Drawing").
-		Preload("CreatedBy").
-		Preload("ApprovedBy")
-	// if member.Role == "technician" {
-	// 	q.Find(&withdrawals, "created_by_id = ?", member.ID)
-	// } else {
-	// 	q.Find(&withdrawals)
-	// }
+		Preload("CreatedBy")
+	if member.Role == models.ROLE_Tech {
+		q.Find(&withdrawals, "created_by_id = ?", member.ID)
+	} else {
+		q.Find(&withdrawals)
+	}
 
 	if err := q.Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve withdrawals"})
@@ -299,7 +299,15 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 		var isAllCompltelyWithdraw = true
 		withdrawal := wapm.Withdrawal
 		order := withdrawal.Order
-		for _, ob := range *wapm.Withdrawal.Order.OrderBoms {
+		var orderBoms []models.OrderBom
+		if err := tx.
+			Where("order_id = ?", order.ID).
+			Find(&orderBoms).
+			Error; err != nil {
+			return err
+		}
+
+		for _, ob := range orderBoms {
 			if !ob.IsCompletelyWithdraw {
 				isAllCompltelyWithdraw = false
 				break
@@ -337,7 +345,21 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Withdraw"})
 		return
 	}
-	c.JSON(http.StatusOK, wapm)
+
+	var withdrawal models.Withdrawal
+	if err := wc.DB.
+		Preload("Project").
+		Preload("Order.Drawing").
+		Preload("WithdrawalApprovements.WithdrawalTransactions.OrderReserving.OrderBom.Bom.Material").
+		Preload("WithdrawalApprovements.ApprovedBy").
+		Preload("Order.OrderBoms.Bom.Material").
+		Preload("CreatedBy").
+		First(&withdrawal, wapm.ID).Error; err != nil {
+		c.JSON(http.StatusPreconditionRequired, gin.H{"error": "Withdrawal not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, withdrawal)
 }
 
 // CreatePartialWithdrawal handles the creation of a partial withdrawal transaction.
@@ -405,6 +427,13 @@ func (wc *WithdrawalController) CreatePartialWithdrawal(c *gin.Context) {
 				}
 			}
 		}
+
+		// update withdrawal status
+		withdrawal.WithdrawalStatus = models.WithdrawalStatus_Pending
+		if err := tx.Save(&withdrawal).Error; err != nil {
+			return err
+		}
+
 		return nil
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Withdraw"})
