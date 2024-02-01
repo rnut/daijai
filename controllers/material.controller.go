@@ -58,21 +58,17 @@ func (mc *MaterialController) CreateMaterial(c *gin.Context) {
 	isFG, _ := strconv.ParseBool(c.Request.FormValue("IsFG"))
 	material.IsFG = isFG
 
-	_, header, err := c.Request.FormFile("image")
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Image upload failed"})
-		return
+	// check form has image value
+	if _, header, err := c.Request.FormFile("image"); err == nil {
+		// Save uploaded image
+		path := "/materials/" + material.Slug + ".jpg"
+		filePath := "./public" + path
+		if err := c.SaveUploadedFile(header, filePath); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save image"})
+			return
+		}
+		material.ImagePath = path
 	}
-	// Save uploaded image
-	path := "/materials/" + material.Slug + ".jpg"
-	filePath := "./public" + path
-	if err := c.SaveUploadedFile(header, filePath); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save image"})
-		return
-	}
-
-	material.ImagePath = path
-
 	if err := mc.DB.Create(&material).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create material"})
 		return
@@ -92,6 +88,9 @@ func (mc *MaterialController) GetMaterials(c *gin.Context) {
 	mainInventoryID := uint(1)
 	isFg := c.Query(models.MaterialType_Param) == models.MaterialType_FinishedGood
 	if err := mc.DB.
+		Preload("Materials", func(db *gorm.DB) *gorm.DB {
+			return db.Order("materials.id ASC")
+		}).
 		Preload("Materials.Sum", "inventory_id = ?", mainInventoryID).
 		Where("is_fg = ?", isFg).
 		Find(&categories).Error; err != nil {
@@ -166,26 +165,20 @@ func (mc *MaterialController) UpdateMaterial(c *gin.Context) {
 	existingMaterial.Title = c.Request.FormValue("Title")
 	existingMaterial.Subtitle = c.Request.FormValue("Subtitle")
 
-	min, err := strconv.ParseInt(c.Request.FormValue("Min"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Min"})
-		return
-	}
-	existingMaterial.Min = min
-	max, err := strconv.ParseInt(c.Request.FormValue("Max"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Max"})
-		return
-	}
-	existingMaterial.Max = max
+	// min, err := strconv.ParseInt(c.Request.FormValue("Min"), 10, 64)
+	// if err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Min"})
+	// 	return
+	// }
+	// existingMaterial.Min = min
+	// max, err := strconv.ParseInt(c.Request.FormValue("Max"), 10, 64)
+	// if err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Max"})
+	// 	return
+	// }
+	// existingMaterial.Max = max
 	// existingMaterial.Price = c.Request.FormValue("Price")
-
-	if c.Request.Form.Has("image") {
-		_, header, err := c.Request.FormFile("image")
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Image upload failed"})
-			return
-		}
+	if _, header, err := c.Request.FormFile("image"); err == nil {
 		// Save uploaded image
 		path := "/materials/" + existingMaterial.Slug + ".jpg"
 		filePath := "./public" + path
@@ -195,9 +188,7 @@ func (mc *MaterialController) UpdateMaterial(c *gin.Context) {
 		}
 
 		existingMaterial.ImagePath = path
-
 	}
-
 	if err := mc.DB.Save(&existingMaterial).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update material"})
 		return
