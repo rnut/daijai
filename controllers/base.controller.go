@@ -97,3 +97,26 @@ func (bc *BaseController) SumMaterial(db *gorm.DB, tag string, matID uint, invID
 	log.Printf("sum: %+v\n", sumMaterialInventory)
 	return nil
 }
+
+func (bc *BaseController) CreateNotification(db *gorm.DB, notification *models.Notification) error {
+	return nil
+	// title := fmt.Sprintf("%s was created withdrawal request", member.FullName)
+	// subtitle := "please check withdrawal request to see more details"
+	// notif := models.Notification{
+	// 	Type:      models.NotificationType_TOPIC,
+	// 	BadgeType: models.NotificationBadgeType_INFO,
+	// 	Title:     title,
+	// 	Subtitle:  subtitle,
+	// 	Body:      withdrawal.Slug,
+	// 	Action:    models.NotificationAction_NEW_WITHDRAWAL,
+	// 	Icon:      "https://i.imgur.com/R3uJ7BF.png",
+	// 	Cover:     "https://i.imgur.com/R3uJ7BF.png",
+	// 	IsRead:    false,
+	// 	IsSeen:    false,
+	// 	Topic:     models.NotificationTopic_ADMIN,
+	// }
+	// if err := tx.Create(&notif).Error; err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// 	return err
+	// }
+}

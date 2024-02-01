@@ -33,8 +33,8 @@ type OrderBom struct {
 }
 
 const (
-	OrderWithdrawStatus_Pending  = "pending"
 	OrderWithdrawStatus_Idle     = "idle"
+	OrderWithdrawStatus_Pending  = "pending"
 	OrderWithdrawStatus_Partial  = "partial"
 	OrderWithdrawStatus_Complete = "complete"
 )

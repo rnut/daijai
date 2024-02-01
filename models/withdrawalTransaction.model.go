@@ -1,18 +1,11 @@
 package models
+
 import "gorm.io/gorm"
 
 type WithdrawalTransaction struct {
 	gorm.Model
-	WithdrawalID uint
-	OrderBomID   uint
-	Quantity     int64
-	Status	   string // "in-progress", "approved", "rejected"
-	Withdrawal   Withdrawal `gorm:"foreignKey:WithdrawalID"`
-	OrderBom     OrderBom `gorm:"foreignKey:OrderBomID"`
+	WithdrawalApprovementID uint
+	OrderReservingID        uint
+	WithdrawalApprovement   *WithdrawalApprovement `gorm:"foreignKey:WithdrawalApprovementID"`
+	OrderReserving          *OrderReserving        `gorm:"foreignKey:OrderReservingID"`
 }
-
-const (
-	WithdrawalTransactionStatus_InProgress = "in-progress"
-	WithdrawalTransactionStatus_Approved = "approved"
-	WithdrawalTransactionStatus_Rejected = "rejected"
-)

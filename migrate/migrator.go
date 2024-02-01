@@ -21,17 +21,18 @@ func main() {
 	migrator := db.Migrator()
 	tables := []interface{}{
 		// relation tables
+		&models.InventoryMaterial{},
+		&models.InventoryMaterialTransaction{},
 		&models.SumMaterialInventory{},
 		&models.ReceiptMaterial{},
 		&models.OrderBom{},
 		&models.OrderReserving{},
+		&models.WithdrawalApprovement{},
 		&models.WithdrawalTransaction{},
-		&models.InventoryMaterial{},
-		&models.InventoryMaterialTransaction{},
+		&models.Withdrawal{},
 		&models.PurchaseSuggestion{},
 		&models.PurchaseMaterial{},
 		// main tables
-		&models.Withdrawal{},
 		&models.Order{},
 		&models.Material{},
 		&models.AppLog{},

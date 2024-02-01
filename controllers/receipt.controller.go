@@ -231,7 +231,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 
 		// get waiting material order boms
 		var orderBoms []models.OrderBom
-		withdrawStatuses := []string{models.OrderWithdrawStatus_Idle, models.OrderWithdrawStatus_Partial}
+		withdrawStatuses := []string{models.OrderWithdrawStatus_Pending, models.OrderWithdrawStatus_Idle, models.OrderWithdrawStatus_Partial}
 		if err := rc.
 			DB.
 			Joins("Bom").

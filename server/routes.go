@@ -116,6 +116,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		withdrawCtrl := controllers.NewWithdrawalController(db)
 		withdrawals.GET("/new/info", withdrawCtrl.GetNewWithdrawInfo)
 		withdrawals.POST("", withdrawCtrl.CreateWithdrawal)
+		withdrawals.POST("/partial", withdrawCtrl.CreatePartialWithdrawal)
 		withdrawals.GET("", withdrawCtrl.GetAllWithdrawals)
 		withdrawals.PUT("/:id", withdrawCtrl.UpdateWithdrawal)
 		withdrawals.GET("/:slug", withdrawCtrl.GetWithdrawalBySlug)

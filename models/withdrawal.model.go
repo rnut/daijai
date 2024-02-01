@@ -4,17 +4,21 @@ import "gorm.io/gorm"
 
 type Withdrawal struct {
 	gorm.Model
-	Slug         string `gorm:"unique"`
-	ProjectID    uint
-	Project      *Project
-	OrderID      uint
-	Order        *Order `gorm:"foreignkey:OrderID"`
-	ApprovedByID *uint
-	ApprovedBy   *Member `gorm:"foreignkey:ApprovedByID"`
-	Notes        string
-	IsApproved   bool
-	CreatedByID  uint    `gorm:"not null"`
-	CreatedBy    *Member `gorm:"foreignkey:CreatedByID"`
-	WithdrawalTransactions *[]WithdrawalTransaction
+	Slug                   string `gorm:"unique"`
+	ProjectID              uint
+	Project                *Project
+	OrderID                uint
+	Order                  *Order `gorm:"foreignkey:OrderID"`
+	Notes                  string
+	CreatedByID            uint    `gorm:"not null"`
+	CreatedBy              *Member `gorm:"foreignkey:CreatedByID"`
+	WithdrawalStatus       string  `gorm:"default:'pending'"`
+	WithdrawalApprovements *[]WithdrawalApprovement
 }
 
+// "idle", "pending", "in-progress", "done"
+const (
+	WithdrawalStatus_Pending    = "pending"
+	WithdrawalStatus_InProgress = "in-progress"
+	WithdrawalStatus_Done       = "done"
+)
