@@ -70,7 +70,7 @@ func (mc *MaterialController) CreateMaterial(c *gin.Context) {
 		material.ImagePath = path
 	}
 	if err := mc.DB.Create(&material).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create material"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
