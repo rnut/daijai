@@ -101,6 +101,14 @@ func initUsers(db *gorm.DB) {
 			Role:     models.ROLE_Tech,
 			Tel:      "0994441111",
 		},
+		{
+			Slug:     "MNG-01",
+			Username: "johndoe",
+			Password: pwd,
+			FullName: "Manager johndoe",
+			Role:     models.ROLE_Manager,
+			Tel:      "6666666666",
+		},
 	}
 
 	for _, user := range users {

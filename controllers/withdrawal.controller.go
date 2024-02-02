@@ -110,11 +110,6 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 		return
 	}
 
-	if order.WithdrawStatus != models.OrderWithdrawStatus_Pending {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Order is not ready to create withdrawal"})
-		return
-	}
-
 	var withdrawal models.Withdrawal
 	var withdrawalApprovement models.WithdrawalApprovement
 
