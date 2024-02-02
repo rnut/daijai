@@ -41,8 +41,12 @@ func (prc *PurchaseRequisitionController) GetNewPRInfo(c *gin.Context) {
 		return
 	}
 
+	mainInventoryID := uint(1)
 	var categories []models.Category
-	if err := prc.DB.Preload("Materials").Find(&categories).Error; err != nil {
+	if err := prc.
+		DB.
+		Preload("Materials.Sum", "inventory_id = ?", mainInventoryID).
+		Find(&categories).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve categories"})
 		return
 	}
@@ -147,10 +151,11 @@ func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Conte
 func (prc *PurchaseRequisitionController) GetPurchaseRequisition(c *gin.Context) {
 	slug := c.Param("slug")
 
+	mainInventoryID := uint(1)
 	var purchaseRequisition models.Purchase
 	if err := prc.
 		DB.
-		Preload("PurchaseMaterials.Material").
+		Preload("PurchaseMaterials.Material.Sum", "inventory_id = ?", mainInventoryID).
 		Preload("PORefs").
 		Preload("CreatedBy").
 		First(&purchaseRequisition, "slug = ?", slug).

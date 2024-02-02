@@ -255,7 +255,6 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 			odb := wts.OrderReserving.OrderBom
 			odb.WithdrawedQty += wts.OrderReserving.Quantity
 			odb.ReservedQty -= wts.OrderReserving.Quantity
-			odb.IsCompletelyWithdraw = odb.TargetQty == odb.WithdrawedQty
 			if err := tx.Save(&odb).Error; err != nil {
 				return err
 			}
@@ -308,9 +307,15 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 		}
 
 		for _, ob := range orderBoms {
-			if !ob.IsCompletelyWithdraw {
+			completely := ob.ReservedQty == ob.WithdrawedQty
+			ob.IsCompletelyWithdraw = completely
+			if !completely {
 				isAllCompltelyWithdraw = false
 				break
+			}
+
+			if err := tx.Save(&ob).Error; err != nil {
+				return err
 			}
 		}
 		if isAllCompltelyWithdraw {
