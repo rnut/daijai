@@ -210,6 +210,7 @@ func (odc *OrderController) GetOrderBySlug(c *gin.Context) {
 		DB.
 		Preload("OrderBoms.Bom.Material").
 		Preload("Drawing").
+		Preload("Project").
 		Preload("CreatedBy").
 		Where("slug = ?", slug).
 		First(&order).
