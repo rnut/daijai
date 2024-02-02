@@ -299,3 +299,24 @@ func (prc *PurchaseRequisitionController) DeletePurchaseRequisition(c *gin.Conte
 
 	c.JSON(http.StatusOK, gin.H{"message": "PurchaseRequisition deleted successfully"})
 }
+
+// approve pr
+func (prc *PurchaseRequisitionController) ApprovePurchaseRequisition(c *gin.Context) {
+	slug := c.Param("slug")
+	mainInventoryID := uint(1)
+	var purchaseRequisition models.Purchase
+	if err := prc.DB.
+		Preload("PurchaseMaterials.Material.Sum", "inventory_id = ?", mainInventoryID).
+		Preload("PORefs").
+		Preload("CreatedBy").
+		First(&purchaseRequisition, "slug = ?", slug).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "PurchaseRequisition not found"})
+		return
+	}
+	purchaseRequisition.IsApprove = true
+	if err := prc.DB.Save(&purchaseRequisition).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to approve PurchaseRequisition"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "PurchaseRequisition approved successfully"})
+}

@@ -135,6 +135,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		pr.GET("/new/info", ctrl.GetNewPRInfo)
 		pr.GET("/:slug", ctrl.GetPurchaseRequisition)
 		pr.PUT("/:id", ctrl.UpdatePurchaseRequisition)
+		pr.PUT("/approve/:slug", ctrl.ApprovePurchaseRequisition)
 		pr.DELETE("/:id", ctrl.DeletePurchaseRequisition)
 	}
 
