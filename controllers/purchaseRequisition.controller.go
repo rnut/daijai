@@ -211,11 +211,13 @@ func (pc *PurchaseRequisitionController) GetAllPurchaseRequisition(c *gin.Contex
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	canFindAll := member.Role == models.ROLE_Admin || member.Role == models.ROLE_Manager
 	var ps []models.Purchase
 	q := pc.DB.
 		Preload("PurchaseMaterials.Material.Category").
 		Preload("CreatedBy")
-	if member.Role == "admin" {
+	if canFindAll {
 		q.Find(&ps)
 	} else {
 		q.Find(&ps, "created_by_id = ?", member.ID)

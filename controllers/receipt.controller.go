@@ -420,7 +420,8 @@ func (rc *ReceiptController) GetAllReceipts(c *gin.Context) {
 		Preload("CreatedBy").
 		Preload("ApprovedBy")
 
-	if member.Role == "admin" {
+	canFindAll := member.Role == models.ROLE_Admin || member.Role == models.ROLE_Manager
+	if canFindAll {
 		q.Find(&receipts)
 	} else {
 		q.Find(&receipts, "created_by_id = ?", member.ID)

@@ -216,7 +216,8 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 		return
 	}
 
-	if member.Role != "admin" {
+	canFindAll := member.Role == models.ROLE_Admin || member.Role == models.ROLE_Manager
+	if !canFindAll {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Permission Denied"})
 		return
 	}

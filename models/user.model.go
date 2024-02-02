@@ -51,7 +51,8 @@ func (User) TableName() string {
 }
 
 const (
-	ROLE_Admin = "admin"
-	ROLE_User  = "user"
-	ROLE_Tech  = "technician"
+	ROLE_Admin   = "admin"
+	ROLE_User    = "user"
+	ROLE_Tech    = "technician"
+	ROLE_Manager = "manager"
 )
