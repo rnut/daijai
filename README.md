@@ -2,9 +2,47 @@
   Golang Rest API Starter
 </h1>
 
+## TODO:
+
+- [ ] รับ quantity ทศนิยมได้
+- [x] ทศนิยม 2 ตำแหน่ง
+- [ ] เพิ่ม process การเลือก order ที่จะผลิต
+- [ ] ตอนรับของ มีใส่ PR แล้ว suggest รายการของ PR มาให้เลือกได้ (suggest เหมือน PR)
+- [ ] sum ของ main-inventory , หน้างาน
+- [ ] ของหน้างาน ให้รู้ว่าเบิกไปโครงการไหน รับของโครงการไหน
+- [ ] เพิ่ม form เบิกแบบเลือกเข้า inventory
+- [ ] ตอนรับของ มีเลือกคลัง ถ้าไม่ใช่คลังหลัก ไม่มีการตัดไปทำ order
+- [ ] เพิ่ม transfer ของ คลังต่อคลัง
+
+## CI CD
+
+login
+
 ```
-cloud build
+$ gcloud auth login
+```
+
+set project id
+
+```
+$ gcloud config set project daijai
+```
+
+build
+
+```
+$ gcloud builds submit --config cloudbuild_run.yaml
+```
+
+deploy
+
+```
+$ gcloud run deploy daijai --platform managed --region asia-southeast1 --image gcr.io/daijai/daijai-go --allow-unauthenticated
+```
+
+// test locally
 PORT=8080 && docker run -p 9090:${PORT} -e PORT=${PORT} .
+
 ```
 
 ![CI](https://github.com/nealajpatel/golang-rest-api-starter/actions/workflows/code-ql.yaml/badge.svg?branch=main&event=push)
@@ -100,3 +138,4 @@ There may be further configuration needed as you expand your application.
 
 - Neal Patel
 - Chris Elias
+```
