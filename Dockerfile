@@ -1,14 +1,16 @@
-FROM golang:1.17.7-bullseye as builder
-RUN mkdir /build 
-ADD . /build/
-WORKDIR /build 
-RUN make build-prod
-RUN ls config/
+FROM golang:1.21.3 as build
 
-FROM scratch
-COPY --from=builder /build/main /build/config/dev.yaml /app/
+WORKDIR /go/src
 
-WORKDIR /app
+COPY . .
+
+RUN go mod download
+RUN go build -o ./app ./main.go
+# Now copy it into our base image.
+FROM gcr.io/distroless/base
+
+COPY --from=build /go/src/app /go/src/app
 
 EXPOSE 8080
-CMD ["./main", "-e", "dev"]
+
+CMD ["/go/src/app"]
