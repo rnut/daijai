@@ -3,19 +3,19 @@ package main
 import (
 	"daijai/config"
 	"daijai/server"
-	"flag"
-	"fmt"
-	"os"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	environment := flag.String("e", "dev", "")
-	flag.Usage = func() {
-		fmt.Println("Usage: server -e {mode}")
-		os.Exit(1)
-	}
-	flag.Parse()
-	config.Init(*environment)
+	gin.SetMode(gin.ReleaseMode)
+	// environment := flag.String("e", "dev", "")
+	// flag.Usage = func() {
+	// 	fmt.Println("Usage: server -e {mode}")
+	// 	os.Exit(1)
+	// }
+	// flag.Parse()
+	// config.Init(*environment)
 	config.ConnectDB()
 	server.Init()
 }

@@ -7,9 +7,11 @@ import (
 
 func Init() {
 	db := config.GetDB()
-	config := config.GetConfig()
 	r := SetupRouter(db)
-	err := r.Run(config.GetString("server.port"))
+	// config := config.GetConfig()
+	// serverAddress := config.GetString("server.port")
+	serverAddress := "0.0.0.0:8080"
+	err := r.Run(serverAddress)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -16,6 +16,9 @@
 
 ## CI CD
 
+locally
+docker build --platform linux/amd64 -t .
+
 login
 
 ```
