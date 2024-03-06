@@ -32,6 +32,7 @@ func main() {
 		&models.Withdrawal{},
 		&models.PurchaseSuggestion{},
 		&models.PurchaseMaterial{},
+
 		// main tables
 		&models.Order{},
 		&models.Material{},
@@ -48,6 +49,7 @@ func main() {
 		&models.Receipt{},
 		&models.User{},
 		&models.Notification{},
+		&models.Adjustment{},
 	}
 	for _, table := range tables {
 		migrator.DropTable(table)

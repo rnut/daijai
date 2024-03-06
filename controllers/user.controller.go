@@ -25,16 +25,7 @@ func NewUser(db *gorm.DB) *UserController {
 
 // Create a new user
 func (uc *UserController) CreateUser(c *gin.Context) {
-	err := c.Request.ParseMultipartForm(10 << 20) // 10 MB limit
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	pwd := c.Request.FormValue("Password")
-	if pwd == "" {
-		pwd = "secretpassword"
-	}
+	pwd := "secretpassword"
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
@@ -42,29 +33,11 @@ func (uc *UserController) CreateUser(c *gin.Context) {
 	}
 
 	var user models.User
-	user.Slug = c.Request.FormValue("Slug")
-	user.Username = c.Request.FormValue("Username")
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 	user.Password = string(hashedPassword)
-	user.FullName = c.Request.FormValue("FullName")
-	user.Role = c.Request.FormValue("Role")
-	user.Tel = c.Request.FormValue("Tel")
-
-	_, header, err := c.Request.FormFile("image")
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Image upload failed"})
-		return
-	}
-	// Save uploaded image
-	path := "/users/" + user.Slug + ".jpg"
-	filePath := "./public" + path
-	if err := c.SaveUploadedFile(header, filePath); err != nil {
-		log.Println(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save image"})
-		return
-	}
-
-	user.ImagePath = path
-
 	if err := uc.DB.Create(&user).Error; err != nil {
 		var duplicateEntryError = &pgconn.PgError{Code: "23505"}
 		if errors.As(err, &duplicateEntryError) {

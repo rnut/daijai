@@ -28,9 +28,11 @@ db.sqlite
 .db-wal
 
 .env
+.env*
 
 tmp/*
 build/*
 
 public/*
 main
+keys/*

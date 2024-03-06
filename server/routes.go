@@ -65,6 +65,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		inventories.POST("", inventoryController.CreateInventory)
 		inventories.GET("", inventoryController.GetInventories)
 		inventories.GET("/:id", inventoryController.GetInventoryByID)
+		inventories.PUT("/:id", inventoryController.UpdateInventory)
+		inventories.DELETE("/:id", inventoryController.DeleteInventory)
 		// inventories.GET("/:id/transactions/:material_id", inventoryController.GetInventoryTransaction)
 		// inventories.GET("/transactions", inventoryController.GetAllInventoryTransactions)
 	}
@@ -89,6 +91,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		materials.GET("", materialController.GetMaterials)
 		materials.GET("/:slug", materialController.GetMaterialBySlug)
 		materials.PUT("/:id", materialController.UpdateMaterial)
+		materials.PUT("/adjust/:id", materialController.AdjustMaterialQuantity)
 		materials.DELETE("/:id", materialController.DeleteMaterial)
 	}
 
@@ -197,7 +200,12 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		notifications.GET("", ctrl.GetNotifications)
 	}
 
-	router.Static("/image", "./public")
+	imageCtrl := controllers.NewImageController()
+	images := router.Group("images")
+	{
+		images.POST("/upload/:directory", imageCtrl.Upload)
+		images.GET("/:directory/:fileName", imageCtrl.Download)
+	}
 
 	return router
 

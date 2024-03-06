@@ -30,7 +30,43 @@ func (mc *InventoryController) CreateInventory(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create inventory"})
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"message": "Inventory created successfully"})
+	c.JSON(http.StatusCreated, request)
+}
+
+func (mc *InventoryController) UpdateInventory(c *gin.Context) {
+	id := c.Param("id")
+	var request models.Inventory
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var inventory models.Inventory
+	if err := mc.DB.First(&inventory, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Inventory not found"})
+		return
+	}
+
+	if err := mc.DB.Model(&inventory).Updates(&request).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update inventory"})
+		return
+	}
+	c.JSON(http.StatusOK, inventory)
+}
+
+func (mc *InventoryController) DeleteInventory(c *gin.Context) {
+	id := c.Param("id")
+	var inventory models.Inventory
+	if err := mc.DB.First(&inventory, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Inventory not found"})
+		return
+	}
+
+	if err := mc.DB.Delete(&inventory).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete inventory"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Inventory deleted successfully"})
 }
 
 // get all inventory

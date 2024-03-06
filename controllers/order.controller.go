@@ -137,7 +137,7 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 				var orderReserving models.OrderReserving
 				orderReserving.OrderID = order.ID
 				orderReserving.OrderBomID = orderBom.ID
-				orderReserving.ReceiptID = mat.ReceiptID
+				orderReserving.ReceiptID = *mat.ReceiptID
 				orderReserving.InventoryMaterialID = mat.ID
 				orderReserving.Quantity = rQty
 				orderReserving.Status = models.OrderReservingStatus_Reserved

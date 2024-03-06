@@ -8,7 +8,8 @@ import (
 )
 
 func main() {
-	gin.SetMode(gin.ReleaseMode)
+	gin.SetMode(gin.DebugMode)
+	// gin.SetMode(gin.ReleaseMode)
 	// environment := flag.String("e", "dev", "")
 	// flag.Usage = func() {
 	// 	fmt.Println("Usage: server -e {mode}")

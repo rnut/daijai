@@ -5,6 +5,7 @@ import (
 	"daijai/token"
 	"fmt"
 	"log"
+	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -69,7 +70,7 @@ func (bc *BaseController) SumMaterial(db *gorm.DB, tag string, matID uint, invID
 		Model(&models.InventoryMaterial{}).
 		Select("SUM(quantity) as quantity, SUM(reserve) as reserved, SUM(withdrawed) as withdrawed").
 		Where("material_id = ?", matID).
-		Where("inventory_id = ?", invID).
+		// Where("inventory_id = ?", invID).
 		Where("is_out_of_stock = ?", false).
 		Find(&counter).Error; err != nil {
 		return err
@@ -79,12 +80,12 @@ func (bc *BaseController) SumMaterial(db *gorm.DB, tag string, matID uint, invID
 	var sumMaterialInventory models.SumMaterialInventory
 	if err := db.
 		Where("material_id = ?", matID).
-		Where("inventory_id = ?", invID).
+		// Where("inventory_id = ?", invID).
 		FirstOrInit(&sumMaterialInventory).Error; err != nil {
 		return err
 	}
 	sumMaterialInventory.MaterialID = matID
-	sumMaterialInventory.InventoryID = invID
+	// sumMaterialInventory.InventoryID = invID
 	sumMaterialInventory.Quantity = counter.Quantity
 	sumMaterialInventory.Reserved = counter.Reserved
 	sumMaterialInventory.Withdrawed = counter.Withdrawed
@@ -119,4 +120,9 @@ func (bc *BaseController) CreateNotification(db *gorm.DB, notification *models.N
 	// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	// 	return err
 	// }
+}
+
+func (bc *BaseController) LogErrorAndSendBadRequest(c *gin.Context, errorMessage string) {
+	log.Println(errorMessage)
+	c.JSON(http.StatusBadRequest, gin.H{"error": errorMessage})
 }

@@ -13,16 +13,18 @@ type InventoryMaterial struct {
 	gorm.Model
 	MaterialID   uint `grom:"not null"`
 	InventoryID  uint `grom:"not null"`
-	ReceiptID    uint
+	ReceiptID    *uint
+	AdjustmentID *uint
 	Quantity     int64
 	Reserve      int64
-	Withdrawed      int64
+	Withdrawed   int64
 	AvailabelQty int64
 	Price        int64
 	IsOutOfStock bool
-	Material     Material  `gorm:"foreignKey:MaterialID;references:ID"`
-	Inventory    Inventory `gorm:"foreignKey:InventoryID;references:ID"`
-	Receipt      *Receipt  `gorm:"foreignKey:ReceiptID;references:ID"`
+	Material     Material    `gorm:"foreignKey:MaterialID;references:ID"`
+	Inventory    Inventory   `gorm:"foreignKey:InventoryID;references:ID"`
+	Receipt      *Receipt    `gorm:"foreignKey:ReceiptID;references:ID"`
+	Adjustment   *Adjustment `gorm:"foreignKey:AdjustmentID;references:ID"`
 	Transactions []InventoryMaterialTransaction
 }
 
@@ -37,8 +39,8 @@ type InventoryMaterialTransaction struct {
 	ExistingReserve          int64
 	UpdatedQuantity          int64
 	UpdatedReserve           int64
-	ReceiptID				*uint
-	Receipt					*Receipt `gorm:"foreignKey:ReceiptID;references:ID"`
+	ReceiptID                *uint
+	Receipt                  *Receipt `gorm:"foreignKey:ReceiptID;references:ID"`
 	OrderID                  *uint
 	Order                    *Order `gorm:"foreignKey:OrderID;references:ID"`
 	WithdrawalID             *uint
@@ -56,7 +58,7 @@ const (
 	InventoryTypeDescription_INCOMINGRECEIPT = "receipt"
 	InventoryTypeDescription_WITHDRAWAL      = "withdrawal"
 	InventoryTypeDescription_ORDER           = "order"
-	InventoryTypeDescription_FillFromReceipt   = "fill-order-from-receipt"
+	InventoryTypeDescription_FillFromReceipt = "fill-order-from-receipt"
 	InventoryTypeDescription_RETURN          = "return"
 	InventoryTypeDescription_ADJUSTMENT      = "adjustment"
 )

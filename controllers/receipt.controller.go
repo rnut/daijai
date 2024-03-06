@@ -83,18 +83,18 @@ func (rc *ReceiptController) GetEditReceiptInfo(c *gin.Context) {
 func (rc *ReceiptController) CreateReceipt(c *gin.Context) {
 	var uid uint
 	if err := rc.GetUserID(c, &uid); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		rc.LogErrorAndSendBadRequest(c, err.Error())
 		return
 	}
 	var member models.Member
 	if err := rc.getUserDataByUserID(rc.DB, uid, &member); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		rc.LogErrorAndSendBadRequest(c, err.Error())
 		return
 	}
 
 	var request models.Receipt
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		rc.LogErrorAndSendBadRequest(c, err.Error())
 		return
 	}
 
@@ -120,7 +120,7 @@ func (rc *ReceiptController) CreateReceipt(c *gin.Context) {
 			Topic:     models.NotificationTopic_MANAGER,
 		}
 		if err := tx.Create(&notif).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			rc.LogErrorAndSendBadRequest(c, err.Error())
 			return err
 		}
 
@@ -137,12 +137,12 @@ func (rc *ReceiptController) CreateReceipt(c *gin.Context) {
 func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 	var uid uint
 	if err := rc.GetUserID(c, &uid); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		rc.LogErrorAndSendBadRequest(c, err.Error())
 		return
 	}
 	var member models.Member
 	if err := rc.getUserDataByUserID(rc.DB, uid, &member); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		rc.LogErrorAndSendBadRequest(c, err.Error())
 		return
 	}
 
@@ -179,7 +179,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			var inventoryMaterial models.InventoryMaterial
 			inventoryMaterial.MaterialID = v.MaterialID
 			inventoryMaterial.InventoryID = receipt.InventoryID
-			inventoryMaterial.ReceiptID = receipt.ID
+			inventoryMaterial.ReceiptID = &receipt.ID
 			inventoryMaterial.Quantity = v.Quantity
 			inventoryMaterial.Reserve = 0
 			inventoryMaterial.AvailabelQty = v.Quantity
@@ -200,7 +200,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 				Select("SUM(quantity) as quantity, SUM(reserve) as reserved, SUM(withdrawed) as withdrawed").
 				Where("material_id = ?", v.MaterialID).
 				Where("inventory_id = ?", receipt.InventoryID).
-				// Where("is_out_of_stock = ?", false).
+				Where("is_out_of_stock = ?", false).
 				Find(&counter).Error; err != nil {
 				return err
 			}
@@ -350,7 +350,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			// 	UserID:    &withdrawal.CreatedByID,
 			// }
 			// if err := tx.Create(&notif).Error; err != nil {
-			// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			// 	rc.LogErrorAndSendBadRequest(c, err.Error())
 			// 	return err
 			// }
 		}
@@ -390,7 +390,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			UserID:    &receipt.CreatedByID,
 		}
 		if err := tx.Create(&notif).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			rc.LogErrorAndSendBadRequest(c, err.Error())
 			return err
 		}
 
@@ -405,12 +405,12 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 func (rc *ReceiptController) GetAllReceipts(c *gin.Context) {
 	var uid uint
 	if err := rc.GetUserID(c, &uid); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		rc.LogErrorAndSendBadRequest(c, err.Error())
 		return
 	}
 	var member models.Member
 	if err := rc.getUserDataByUserID(rc.DB, uid, &member); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		rc.LogErrorAndSendBadRequest(c, err.Error())
 		return
 	}
 
@@ -486,7 +486,7 @@ func (rc *ReceiptController) UpdateReceipt(c *gin.Context) {
 
 	var request models.Receipt
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		rc.LogErrorAndSendBadRequest(c, err.Error())
 		return
 	}
 
