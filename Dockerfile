@@ -5,11 +5,13 @@ WORKDIR /go/src
 COPY . .
 RUN go mod download
 RUN go build -o ./app ./main.go
-# Now copy it into our base image.
-FROM gcr.io/distroless/base
-COPY --from=build /go/src/app /go/src/app
-# COPY --from=build /go/src/.env /go/src/.env
+
+
+FROM gcr.io/distroless/base-debian11
+COPY --from=build /go/src/keys/daijai-d4ab4aa6981d.json /keys/daijai-d4ab4aa6981d.json
+COPY --from=build /go/src/.env /
+COPY --from=build /go/src/app /
 
 EXPOSE 8080
 
-CMD ["/go/src/app"]
+CMD ["/app"]

@@ -80,43 +80,41 @@ func (ctrl *ImageController) Upload(c *gin.Context) {
 }
 
 func (ctrl *ImageController) Download(c *gin.Context) {
-	prefix := "public"
 	directory := c.Param("directory")
-	object := c.Param("fileName")
-	localDirectory := fmt.Sprintf("%s/%s/%s", prefix, directory, object)
-
-	if _, err := os.Stat(localDirectory); os.IsNotExist(err) {
+	fileName := c.Param("fileName")
+	if fileName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "object is required",
+		})
+		return
+	}
+	if _, err := os.Stat(fileName); os.IsNotExist(err) {
 		uploader.UploadPath = fmt.Sprintf("%s/", directory)
 		log.Println("File not found, downloading from cloud storage")
-		if object == "" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "object is required",
-			})
-			return
-		}
 
-		file, err := os.Create(localDirectory)
+		file, err := os.Create(fileName)
 		if err != nil {
-			log.Println("Failed to create file")
+			log.Println("Failed to create file:", fileName)
+			log.Println("error: ", err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": err.Error(),
 			})
 			return
 		}
 
-		log.Println("Downloading file from cloud storage path: ", object)
-		err = uploader.DownloadFile(file, object)
+		log.Println("Downloading file from cloud storage path: ", fileName)
+		err = uploader.DownloadFile(file, fileName)
 		if err != nil {
-			// os.Remove(path)
+			os.Remove(fileName)
 			log.Println("Failed to download file")
-			log.Println("error: ", err)
+			log.Println("error: ", err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": err.Error(),
 			})
 			return
 		}
-		c.File(localDirectory)
+		c.File(fileName)
 	} else {
-		c.File(localDirectory)
+		c.File(fileName)
 	}
 }

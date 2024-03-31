@@ -88,6 +88,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	{
 		materialController := controllers.NewMaterialController(db)
 		materials.POST("", materialController.CreateMaterial)
+		materials.GET("/trash", materialController.GetDeletedMaterials)
+		materials.PUT("/restore/:id", materialController.RestoreMaterial)
+		materials.DELETE("/permanantly/:id", materialController.PermanentlyDeleteMaterial)
 		materials.GET("", materialController.GetMaterials)
 		materials.GET("/:slug", materialController.GetMaterialBySlug)
 		materials.PUT("/:id", materialController.UpdateMaterial)

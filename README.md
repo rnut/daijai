@@ -1,5 +1,5 @@
 <h1 align="center">
-  Golang Rest API Starter
+  DAIJAI - GO
 </h1>
 
 ## TODO:
@@ -14,40 +14,26 @@
 - [ ] ตอนรับของ มีเลือกคลัง ถ้าไม่ใช่คลังหลัก ไม่มีการตัดไปทำ order
 - [ ] เพิ่ม transfer ของ คลังต่อคลัง
 
-## CI CD
+## DEPLOYMENT
 
-locally
-docker build --platform linux/amd64 -t .
+### login gcloud
 
-login
+1. login `gcloud auth login`
+2. set project id `gcloud config set project daijai`
 
-```
-$ gcloud auth login
-```
+### Build step
 
-set project id
+1. change environment (.env file) to prod
+2. build `gcloud builds submit --config cloudbuild_run.yaml`
+3. deploy `gcloud run deploy daijai --platform managed --region asia-southeast1 --image gcr.io/daijai/daijai-go --allow-unauthenticated`
 
-```
-$ gcloud config set project daijai
-```
+### Test locally
 
-build
+- `docker build --platform linux/amd64 -t .`
+- `PORT=8080 && docker run -p 9090:${PORT} -e PORT=${PORT} .`
+- `docker run --entrypoint=sh -ti daijai-go`
 
-```
-$ gcloud builds submit --config cloudbuild_run.yaml
-```
-
-deploy
-
-```
-$ gcloud run deploy daijai --platform managed --region asia-southeast1 --image gcr.io/daijai/daijai-go --allow-unauthenticated
-```
-
-// test locally
-PORT=8080 && docker run -p 9090:${PORT} -e PORT=${PORT} .
-
-```
-
+<hr>
 ![CI](https://github.com/nealajpatel/golang-rest-api-starter/actions/workflows/code-ql.yaml/badge.svg?branch=main&event=push)
 ![CI](https://github.com/nealajpatel/golang-rest-api-starter/actions/workflows/pipeline.yaml/badge.svg?branch=main&event=push)
 
@@ -141,4 +127,7 @@ There may be further configuration needed as you expand your application.
 
 - Neal Patel
 - Chris Elias
+
+```
+
 ```

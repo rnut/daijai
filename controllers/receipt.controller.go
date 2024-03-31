@@ -23,8 +23,10 @@ func NewReceipt(db *gorm.DB) *ReceiptController {
 
 func (rc *ReceiptController) GetNewReceiptInfo(c *gin.Context) {
 	var response struct {
-		Slug       string
-		Categories []models.Category
+		Slug        string
+		Categories  []models.Category
+		PRs         []models.Purchase
+		Inventories []models.Inventory
 	}
 
 	var categories []models.Category
@@ -36,6 +38,22 @@ func (rc *ReceiptController) GetNewReceiptInfo(c *gin.Context) {
 	}
 
 	response.Categories = categories
+
+	// get all prs
+	var prs []models.Purchase
+	if err := rc.DB.Find(&prs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve purchase requisitions"})
+		return
+	}
+	response.PRs = prs
+
+	// get all inventories
+	var inventories []models.Inventory
+	if err := rc.DB.Find(&inventories).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve inventories"})
+		return
+	}
+	response.Inventories = inventories
 
 	var slug string
 	if err := rc.RequestSlug(&slug, rc.DB, "receipts"); err != nil {
@@ -229,148 +247,12 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			}
 		}
 
-		// get waiting material order boms
-		var orderBoms []models.OrderBom
-		withdrawStatuses := []string{models.OrderWithdrawStatus_Pending, models.OrderWithdrawStatus_Idle, models.OrderWithdrawStatus_Partial}
-		if err := rc.
-			DB.
-			Joins("Bom").
-			Joins("Order").
-			Preload("Bom.Material").
-			Where("is_full_filled = ?", false).
-			Where("withdraw_status IN (?)", withdrawStatuses).
-			Where("material_id IN ?", matIDs).
-			Find(&orderBoms).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch OrderBoms"})
-			return err
-		}
-
-		var filledOrderBomIDs []uint
-		// loop order boms
-		for _, orderBom := range orderBoms {
-			target := orderBom.TargetQty - (orderBom.ReservedQty + orderBom.WithdrawedQty)
-			matID := orderBom.Bom.MaterialID
-			qouta := matQuantity[matID]
-
-			if qouta == 0 {
-				continue
-			}
-
-			var quantity int64
-			if qouta > target {
-				quantity = target
-			} else {
-				quantity = qouta
-			}
-
-			inventoryMaterialID := matInventoryId[matID]
-
-			// create order reserving
-			orderReserving := models.OrderReserving{
-				OrderID:             orderBom.OrderID,
-				OrderBomID:          orderBom.ID,
-				ReceiptID:           receipt.ID,
-				InventoryMaterialID: inventoryMaterialID,
-				Quantity:            quantity,
-				Status:              models.OrderReservingStatus_Reserved,
-			}
-			if err := tx.Save(&orderReserving).Error; err != nil {
-				return err
-			}
-
-			// update order bom
-			orderBom.ReservedQty += quantity
-
-			totalQty := orderBom.ReservedQty + orderBom.WithdrawedQty
-			if totalQty == orderBom.TargetQty {
-				orderBom.IsFullFilled = true
-				filledOrderBomIDs = append(filledOrderBomIDs, orderBom.ID)
-			}
-			if err := tx.Save(&orderBom).Error; err != nil {
-				return err
-			}
-
-			// update inventory material
-			var inventoryMaterial models.InventoryMaterial
-			if err := tx.First(&inventoryMaterial, inventoryMaterialID).Error; err != nil {
-				return err
-			}
-			inventoryMaterial.Reserve += quantity
-			inventoryMaterial.AvailabelQty -= quantity
-			if inventoryMaterial.AvailabelQty == 0 {
-				inventoryMaterial.IsOutOfStock = true
-			}
-			if err := tx.Save(&inventoryMaterial).Error; err != nil {
-				return err
-			}
-
-			// create inventory material transaction
-			ivmtReserve := models.InventoryMaterialTransaction{
-				InventoryMaterialID:      inventoryMaterialID,
-				Quantity:                 quantity,
-				InventoryType:            models.InventoryType_RESERVE,
-				InventoryTypeDescription: models.InventoryTypeDescription_FillFromReceipt,
-				ExistingQuantity:         qouta,
-				ExistingReserve:          0,
-				UpdatedQuantity:          qouta,
-				UpdatedReserve:           quantity,
-				OrderID:                  &orderBom.OrderID,
-			}
-			if err := tx.Save(&ivmtReserve).Error; err != nil {
-				return err
-			}
-
-			// update material quantity
-			matQuantity[matID] -= quantity
-
-			invID := inventoryMaterial.InventoryID
-			rc.SumMaterial(tx, "fill-order-receipt", matID, invID)
-
-			// create notification
-			// var withdrawal models.Withdrawal
-			// if err := tx.
-			// 	Where("order_id = ?", orderBom.OrderID).
-			// 	First(&withdrawal).Error; err != nil {
-			// 	return err
-			// }
-			// title := fmt.Sprintf("%s has been restock", orderBom.Bom.Material.Title)
-			// subtitle := "please check withdrawal request to see more details"
-			// notif := models.Notification{
-			// 	Type:      models.NotificationType_USER,
-			// 	BadgeType: models.NotificationBadgeType_INFO,
-			// 	Title:     title,
-			// 	Subtitle:  subtitle,
-			// 	Body:      withdrawal.Slug,
-			// 	Action:    models.NotificationAction_RESTOCK,
-			// 	Icon:      "https://i.imgur.com/R3uJ7BF.png",
-			// 	Cover:     "https://i.imgur.com/R3uJ7BF.png",
-			// 	IsRead:    false,
-			// 	IsSeen:    false,
-			// 	Topic:     models.NotificationTopic_None,
-			// 	UserID:    &withdrawal.CreatedByID,
-			// }
-			// if err := tx.Create(&notif).Error; err != nil {
-			// 	rc.LogErrorAndSendBadRequest(c, err.Error())
-			// 	return err
-			// }
-		}
-
 		// update receipt status and approved by
 		receipt.IsApproved = true
 		receipt.ApprovedByID = &member.ID
 		receipt.ApprovedBy = &member
 		if err := tx.Save(&receipt).Error; err != nil {
 			return err
-		}
-
-		if len(filledOrderBomIDs) > 0 {
-			if err := tx.
-				Model(&models.PurchaseSuggestion{}).
-				Where("id IN ?", filledOrderBomIDs).
-				Update("status", models.PurchaseSuggestionStatus_Done).
-				Error; err != nil {
-				return err
-			}
 		}
 
 		title := fmt.Sprintf("Receipt was approved by %s", member.FullName)
@@ -401,6 +283,143 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, receipt)
 }
+
+// func fillOrders() {
+// 			// get waiting material order boms
+// 			var orderBoms []models.OrderBom
+// 			withdrawStatuses := []string{models.OrderWithdrawStatus_Pending, models.OrderWithdrawStatus_Idle, models.OrderWithdrawStatus_Partial}
+// 			if err := rc.
+// 				DB.
+// 				Joins("Bom").
+// 				Joins("Order").
+// 				Preload("Bom.Material").
+// 				Where("is_full_filled = ?", false).
+// 				Where("withdraw_status IN (?)", withdrawStatuses).
+// 				Where("material_id IN ?", matIDs).
+// 				Find(&orderBoms).Error; err != nil {
+// 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch OrderBoms"})
+// 				return err
+// 			}
+
+// 			var filledOrderBomIDs []uint
+// 			// loop order boms
+// 			for _, orderBom := range orderBoms {
+// 				target := orderBom.TargetQty - (orderBom.ReservedQty + orderBom.WithdrawedQty)
+// 				matID := orderBom.Bom.MaterialID
+// 				qouta := matQuantity[matID]
+
+// 				if qouta == 0 {
+// 					continue
+// 				}
+
+// 				var quantity int64
+// 				if qouta > target {
+// 					quantity = target
+// 				} else {
+// 					quantity = qouta
+// 				}
+
+// 				inventoryMaterialID := matInventoryId[matID]
+
+// 				// create order reserving
+// 				orderReserving := models.OrderReserving{
+// 					OrderID:             orderBom.OrderID,
+// 					OrderBomID:          orderBom.ID,
+// 					ReceiptID:           receipt.ID,
+// 					InventoryMaterialID: inventoryMaterialID,
+// 					Quantity:            quantity,
+// 					Status:              models.OrderReservingStatus_Reserved,
+// 				}
+// 				if err := tx.Save(&orderReserving).Error; err != nil {
+// 					return err
+// 				}
+
+// 				// update order bom
+// 				orderBom.ReservedQty += quantity
+
+// 				totalQty := orderBom.ReservedQty + orderBom.WithdrawedQty
+// 				if totalQty == orderBom.TargetQty {
+// 					orderBom.IsFullFilled = true
+// 					filledOrderBomIDs = append(filledOrderBomIDs, orderBom.ID)
+// 				}
+// 				if err := tx.Save(&orderBom).Error; err != nil {
+// 					return err
+// 				}
+
+// 				// update inventory material
+// 				var inventoryMaterial models.InventoryMaterial
+// 				if err := tx.First(&inventoryMaterial, inventoryMaterialID).Error; err != nil {
+// 					return err
+// 				}
+// 				inventoryMaterial.Reserve += quantity
+// 				inventoryMaterial.AvailabelQty -= quantity
+// 				if inventoryMaterial.AvailabelQty == 0 {
+// 					inventoryMaterial.IsOutOfStock = true
+// 				}
+// 				if err := tx.Save(&inventoryMaterial).Error; err != nil {
+// 					return err
+// 				}
+
+// 				// create inventory material transaction
+// 				ivmtReserve := models.InventoryMaterialTransaction{
+// 					InventoryMaterialID:      inventoryMaterialID,
+// 					Quantity:                 quantity,
+// 					InventoryType:            models.InventoryType_RESERVE,
+// 					InventoryTypeDescription: models.InventoryTypeDescription_FillFromReceipt,
+// 					ExistingQuantity:         qouta,
+// 					ExistingReserve:          0,
+// 					UpdatedQuantity:          qouta,
+// 					UpdatedReserve:           quantity,
+// 					OrderID:                  &orderBom.OrderID,
+// 				}
+// 				if err := tx.Save(&ivmtReserve).Error; err != nil {
+// 					return err
+// 				}
+
+// 				// update material quantity
+// 				matQuantity[matID] -= quantity
+
+// 				invID := inventoryMaterial.InventoryID
+// 				rc.SumMaterial(tx, "fill-order-receipt", matID, invID)
+
+// 				// create notification
+// 				// var withdrawal models.Withdrawal
+// 				// if err := tx.
+// 				// 	Where("order_id = ?", orderBom.OrderID).
+// 				// 	First(&withdrawal).Error; err != nil {
+// 				// 	return err
+// 				// }
+// 				// title := fmt.Sprintf("%s has been restock", orderBom.Bom.Material.Title)
+// 				// subtitle := "please check withdrawal request to see more details"
+// 				// notif := models.Notification{
+// 				// 	Type:      models.NotificationType_USER,
+// 				// 	BadgeType: models.NotificationBadgeType_INFO,
+// 				// 	Title:     title,
+// 				// 	Subtitle:  subtitle,
+// 				// 	Body:      withdrawal.Slug,
+// 				// 	Action:    models.NotificationAction_RESTOCK,
+// 				// 	Icon:      "https://i.imgur.com/R3uJ7BF.png",
+// 				// 	Cover:     "https://i.imgur.com/R3uJ7BF.png",
+// 				// 	IsRead:    false,
+// 				// 	IsSeen:    false,
+// 				// 	Topic:     models.NotificationTopic_None,
+// 				// 	UserID:    &withdrawal.CreatedByID,
+// 				// }
+// 				// if err := tx.Create(&notif).Error; err != nil {
+// 				// 	rc.LogErrorAndSendBadRequest(c, err.Error())
+// 				// 	return err
+// 				// }
+// 			}
+// if len(filledOrderBomIDs) > 0 {
+// 	if err := tx.
+// 		Model(&models.PurchaseSuggestion{}).
+// 		Where("id IN ?", filledOrderBomIDs).
+// 		Update("status", models.PurchaseSuggestionStatus_Done).
+// 		Error; err != nil {
+// 		return err
+// 	}
+// }
+// }
 
 func (rc *ReceiptController) GetAllReceipts(c *gin.Context) {
 	var uid uint

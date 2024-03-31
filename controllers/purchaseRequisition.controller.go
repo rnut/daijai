@@ -84,7 +84,7 @@ func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Conte
 		Slug              string                    `json:"Slug"`
 		Notes             string                    `json:"Notes"`
 		PurchaseMaterials []models.PurchaseMaterial `json:"PurchaseMaterials"`
-		PORefs            []models.PORef            `json:"PORefs"`
+		PORefs            []string                  `json:"PORefs"`
 	}
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -97,7 +97,6 @@ func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Conte
 			Slug:        request.Slug,
 			Notes:       request.Notes,
 			CreatedByID: member.ID,
-			PORefs:      request.PORefs,
 		}
 		if err := tx.Create(&purchase).Error; err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
