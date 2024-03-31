@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"daijai/models"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -103,6 +104,8 @@ func (mc *MaterialController) PermanentlyDeleteMaterial(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid material ID"})
 		return
 	}
+
+	fmt.Println("materialID", materialID)
 
 	if err := mc.DB.Unscoped().Delete(&models.Material{}, materialID).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete material"})
