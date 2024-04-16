@@ -163,7 +163,7 @@ func (mc *MaterialController) UpdateMaterial(c *gin.Context) {
 	}
 
 	var existingMaterial models.Material
-	if err := mc.DB.Preload("Sum").First(&existingMaterial, materialID).Error; err != nil {
+	if err := mc.DB.Preload("Sums").First(&existingMaterial, materialID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Material not found"})
 		return
 	}
@@ -281,7 +281,7 @@ func (mc *MaterialController) AdjustMaterialQuantity(c *gin.Context) {
 	}
 
 	// reload material
-	if err := mc.DB.Preload("Sum").First(&material, materialID).Error; err != nil {
+	if err := mc.DB.Preload("Sums").First(&material, materialID).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Material Category"})
 		return
 	}

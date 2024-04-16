@@ -210,6 +210,14 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		images.GET("/:directory/:fileName", imageCtrl.Download)
 	}
 
+	plannerCtrl := controllers.NewPlannerController(db)
+	planner := router.Group("planner")
+	{
+		planner.GET("/new/info", plannerCtrl.GetNewPlannerInfo)
+		planner.GET("/materials", plannerCtrl.GetMaterialSumByInventory)
+		planner.POST("", plannerCtrl.CreatePlanner)
+	}
+
 	return router
 
 }

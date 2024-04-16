@@ -4,7 +4,6 @@ package tests
 
 import (
 	"daijai/config"
-	"daijai/server"
 	"testing"
 
 	"encoding/json"
@@ -29,7 +28,6 @@ type HealthSuite struct {
 func (suite *HealthSuite) SetupSuite() {
 	config.Init("dev")
 	suite.Config = config.GetConfig()
-	suite.Router = server.SetupRouter()
 }
 
 // sets up env for each test

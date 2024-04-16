@@ -13,7 +13,7 @@ type Material struct {
 	CategoryID uint   `json:"CategoryID" form:"CategoryID"`
 	Category   Category
 	IsFG       bool `gorm:"default:false"`
-	Sum        *SumMaterialInventory
+	Sums       *[]SumMaterialInventory
 }
 
 type SumMaterialInventory struct {
