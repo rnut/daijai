@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -43,17 +44,53 @@ func (mc *MaterialController) CreateMaterial(c *gin.Context) {
 	c.JSON(http.StatusCreated, material)
 }
 
+// Query materials by category, inventory, and material type
+func (mc *MaterialController) QueryMaterials(c *gin.Context) {
+	categoryID := c.Query("categoryID")
+	inventoryIDs := c.Query("inventoryIDs")
+	isFg := c.Query(models.MaterialType_Param) == models.MaterialType_FinishedGood
+	distinct := c.Query("distinct") == "true"
+
+	// split inventory slugs by delimeter ','
+	var inventorySlugArr []string
+	if inventoryIDs != "" {
+		inventorySlugArr = strings.Split(inventoryIDs, ",")
+	}
+
+	var materials []models.Material
+	if err := mc.DB.
+		Preload("Sums", "inventory_id IN ?", inventorySlugArr).
+		Where("category_id = ?", categoryID).
+		Where("is_fg = ?", isFg).
+		Find(&materials).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve materials"})
+		return
+	}
+
+	if distinct {
+		var filteredMaterials []models.Material
+		for _, material := range materials {
+			if len(*material.Sums) > 0 {
+				filteredMaterials = append(filteredMaterials, material)
+			}
+		}
+		c.JSON(http.StatusOK, filteredMaterials)
+	} else {
+		c.JSON(http.StatusOK, materials)
+	}
+
+}
+
 // GetMaterials returns a list of all materials.
 func (mc *MaterialController) GetMaterials(c *gin.Context) {
 	var categories []models.Category
 	isFg := c.Query(models.MaterialType_Param) == models.MaterialType_FinishedGood
+	fmt.Println("isFg", isFg)
 	if err := mc.DB.
 		Preload("Materials", func(db *gorm.DB) *gorm.DB {
 			return db.Order("materials.id ASC")
 		}).
-		Preload("Materials.Sum").
-		// mainInventoryID := uint(1)
-		// Preload("Materials.Sum", "inventory_id = ?", mainInventoryID). // sum only main inventory
+		Preload("Materials.Sums").
 		Where("is_fg = ?", isFg).
 		Find(&categories).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve categories"})
@@ -248,7 +285,7 @@ func (mc *MaterialController) AdjustMaterialQuantity(c *gin.Context) {
 			MaterialID:   material.ID,
 			AdjustmentID: &adjustment.ID,
 			Quantity:     req.Quantity,
-			AvailabelQty: req.Quantity,
+			AvailableQty: req.Quantity,
 			IsOutOfStock: false,
 			Price:        adjustment.PricePerUnit,
 		}

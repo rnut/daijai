@@ -45,7 +45,7 @@ func (prc *PurchaseRequisitionController) GetNewPRInfo(c *gin.Context) {
 	var categories []models.Category
 	if err := prc.
 		DB.
-		Preload("Materials.Sum", "inventory_id = ?", mainInventoryID).
+		Preload("Materials.Sums", "inventory_id = ?", mainInventoryID).
 		Find(&categories).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve categories"})
 		return

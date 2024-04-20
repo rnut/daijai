@@ -200,7 +200,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 			inventoryMaterial.ReceiptID = &receipt.ID
 			inventoryMaterial.Quantity = v.Quantity
 			inventoryMaterial.Reserve = 0
-			inventoryMaterial.AvailabelQty = v.Quantity
+			inventoryMaterial.AvailableQty = v.Quantity
 			inventoryMaterial.IsOutOfStock = false
 			inventoryMaterial.Price = v.Price
 			if err := tx.Save(&inventoryMaterial).Error; err != nil {
@@ -352,8 +352,8 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 // 					return err
 // 				}
 // 				inventoryMaterial.Reserve += quantity
-// 				inventoryMaterial.AvailabelQty -= quantity
-// 				if inventoryMaterial.AvailabelQty == 0 {
+// 				inventoryMaterial.AvailableQty -= quantity
+// 				if inventoryMaterial.AvailableQty == 0 {
 // 					inventoryMaterial.IsOutOfStock = true
 // 				}
 // 				if err := tx.Save(&inventoryMaterial).Error; err != nil {

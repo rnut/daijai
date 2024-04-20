@@ -161,10 +161,10 @@ func (rc *PlannerController) CreatePlanner(c *gin.Context) {
 					break
 				}
 
-				if invMat.AvailabelQty >= requiredQty {
+				if invMat.AvailableQty >= requiredQty {
 					available = requiredQty
 				} else {
-					available = invMat.AvailabelQty
+					available = invMat.AvailableQty
 				}
 
 				// create OrderReserving
@@ -198,11 +198,11 @@ func (rc *PlannerController) CreatePlanner(c *gin.Context) {
 				}
 
 				// update inventory material
-				invMat.AvailabelQty -= available
+				invMat.AvailableQty -= available
 				invMat.Reserve += available
 
 				// update inventory material is out of stock
-				if invMat.AvailabelQty == 0 {
+				if invMat.AvailableQty == 0 {
 					invMat.IsOutOfStock = true
 				}
 				if err := rc.DB.Save(&invMat).Error; err != nil {

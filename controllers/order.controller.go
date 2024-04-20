@@ -101,7 +101,7 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 				}
 				// calculate target and available qty
 				requiredQty := target - totalReserve
-				availabelQty := mat.AvailabelQty
+				availabelQty := mat.AvailableQty
 				// calculate reserve qty
 				var rQty int64
 				var isInventoryOutOfStock bool
@@ -148,7 +148,7 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 
 				// update inventory material and out of stock
 				mat.Reserve = updatedReserve
-				mat.AvailabelQty -= rQty
+				mat.AvailableQty -= rQty
 				mat.IsOutOfStock = isInventoryOutOfStock
 				if err := tx.Save(&mat).Error; err != nil {
 					return err
