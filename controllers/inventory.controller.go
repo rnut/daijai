@@ -306,10 +306,16 @@ func (mc *InventoryController) TransferMaterial(c *gin.Context) {
 		}
 		mc.SumMaterial(tx, "transfer", material.ID, fromInventory.ID)
 		mc.SumMaterial(tx, "transfer", material.ID, toInventory.ID)
+
 		return nil
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to transfer material", "detail": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "Material transferred successfully"})
+	if err := mc.DB.
+		Preload("Sums", "inventory_id = ?", fromInventory.ID).
+		First(&material, request.MaterialID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get material"})
+	}
+	c.JSON(http.StatusOK, material)
 }
