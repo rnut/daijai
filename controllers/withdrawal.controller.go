@@ -101,7 +101,7 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 	var order models.Order
 	if err := wc.DB.
 		Preload("Drawing").
-		Preload("OrderBoms").
+		Preload("OrderBOMs").
 		Preload("OrderBOMs.BOM").
 		Preload("OrderReservings").
 		First(&order).
@@ -225,7 +225,7 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 
 	var wapm models.WithdrawalApprovement
 	if err := wc.DB.
-		Preload("Withdrawal.Order.OrderBoms").
+		Preload("Withdrawal.Order.OrderBOMs").
 		Preload("WithdrawalTransactions").
 		Preload("WithdrawalTransactions.OrderReserving.InventoryMaterial").
 		Preload("WithdrawalTransactions.OrderReserving.OrderBom").

@@ -10,3 +10,7 @@ type BOM struct {
 	MaterialID uint
 	Material   *Material
 }
+
+func (BOM) TableName() string {
+	return "boms"
+}

@@ -297,7 +297,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 // 				Where("withdraw_status IN (?)", withdrawStatuses).
 // 				Where("material_id IN ?", matIDs).
 // 				Find(&orderBoms).Error; err != nil {
-// 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch OrderBoms"})
+// 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch OrderBOMs"})
 // 				return err
 // 			}
 

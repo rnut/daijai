@@ -13,7 +13,7 @@ type Order struct {
 	Project          Project
 	CreatedByID      uint   `gorm:"not null"`
 	CreatedBy        Member `gorm:"foreignkey:CreatedByID"`
-	OrderBoms        *[]OrderBom
+	OrderBOMs        *[]OrderBom
 	WithdrawStatus   string `gorm:"default:'pending'"`
 	OrderReservings  *[]OrderReserving
 	IsFG             bool `gorm:"default:false"`
@@ -38,3 +38,7 @@ const (
 	OrderWithdrawStatus_Partial  = "partial"
 	OrderWithdrawStatus_Complete = "complete"
 )
+
+func (OrderBom) TableName() string {
+	return "order_boms"
+}

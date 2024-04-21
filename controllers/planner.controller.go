@@ -30,7 +30,7 @@ func (rc *PlannerController) GetNewPlannerInfo(c *gin.Context) {
 
 	// get all inventories
 	if err := rc.DB.Find(&response.Inventories).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch inventories"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to fetch inventories"})
 		return
 	}
 
@@ -39,7 +39,7 @@ func (rc *PlannerController) GetNewPlannerInfo(c *gin.Context) {
 		Preload("OrderBOMs.BOM.Material").
 		Where("withdraw_status IN (?)", incompletedStatus).
 		Find(&response.IncompleteOrders).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch incomplete orders"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to fetch incomplete orders"})
 		return
 	}
 
@@ -112,7 +112,7 @@ func (rc *PlannerController) CreatePlanner(c *gin.Context) {
 	}
 	var orderBOMs []models.OrderBom
 	if err := rc.DB.
-		Preload("Bom.Material").
+		Preload("BOM.Material").
 		Where("id IN ?", orderBOMIDs).
 		Where("is_full_filled = ?", false).
 		Where("is_completely_withdraw = ?", false).

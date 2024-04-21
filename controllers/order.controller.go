@@ -69,17 +69,7 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 			return err
 		}
 
-		mainInventory := uint(1)
-
 		for _, bom := range drawing.BOMs {
-			// get InventoryMaterial that availableqty > 0 and not out of stock order by date created asc limit by sum of available == reserve
-			var inventoryMaterials []models.InventoryMaterial
-			if err := tx.
-				Where("material_id = ? AND inventory_id = ? AND availabel_qty > 0 AND is_out_of_stock = false", bom.MaterialID, mainInventory).
-				Order("created_at asc").
-				Find(&inventoryMaterials).Error; err != nil {
-				return err
-			}
 
 			target := bom.Quantity * order.ProducedQuantity
 
@@ -93,86 +83,97 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 				return err
 			}
 
-			totalReserve := int64(0)
-			var isFullFilled bool
-			for _, mat := range inventoryMaterials {
-				if isFullFilled {
-					break
-				}
-				// calculate target and available qty
-				requiredQty := target - totalReserve
-				availabelQty := mat.AvailableQty
-				// calculate reserve qty
-				var rQty int64
-				var isInventoryOutOfStock bool
-				if availabelQty <= requiredQty {
-					rQty = availabelQty
-					isInventoryOutOfStock = true
-				} else {
-					rQty = requiredQty
-					isInventoryOutOfStock = false
-				}
-				totalReserve += rQty
-				if totalReserve == target {
-					isFullFilled = true
-				}
+			// reserve material
+			// mainInventory := uint(1)
+			// get InventoryMaterial that availableqty > 0 and not out of stock order by date created asc limit by sum of available == reserve
+			// var inventoryMaterials []models.InventoryMaterial
+			// if err := tx.
+			// 	Where("material_id = ? AND inventory_id = ? AND available_qty > 0 AND is_out_of_stock = false", bom.MaterialID, mainInventory).
+			// 	Order("created_at asc").
+			// 	Find(&inventoryMaterials).Error; err != nil {
+			// 	return err
+			// }
+			// totalReserve := int64(0)
+			// var isFullFilled bool
+			// for _, mat := range inventoryMaterials {
+			// 	if isFullFilled {
+			// 		break
+			// 	}
+			// 	// calculate target and available qty
+			// 	requiredQty := target - totalReserve
+			// 	availabelQty := mat.AvailableQty
+			// 	// calculate reserve qty
+			// 	var rQty int64
+			// 	var isInventoryOutOfStock bool
+			// 	if availabelQty <= requiredQty {
+			// 		rQty = availabelQty
+			// 		isInventoryOutOfStock = true
+			// 	} else {
+			// 		rQty = requiredQty
+			// 		isInventoryOutOfStock = false
+			// 	}
+			// 	totalReserve += rQty
+			// 	if totalReserve == target {
+			// 		isFullFilled = true
+			// 	}
 
-				var updatedReserve = mat.Reserve + rQty
-				// create inventory material transaction
-				var transaction models.InventoryMaterialTransaction
-				transaction.InventoryMaterialID = mat.ID
-				transaction.Quantity = rQty
-				transaction.InventoryType = models.InventoryType_RESERVE
-				transaction.InventoryTypeDescription = models.InventoryTypeDescription_ORDER
-				transaction.ExistingQuantity = mat.Quantity
-				transaction.ExistingReserve = mat.Reserve
-				transaction.UpdatedQuantity = mat.Quantity
-				transaction.UpdatedReserve = updatedReserve
-				transaction.OrderID = &order.ID
-				if err := tx.Create(&transaction).Error; err != nil {
-					return err
-				}
+			// 	var updatedReserve = mat.Reserve + rQty
+			// 	// create inventory material transaction
+			// 	var transaction models.InventoryMaterialTransaction
+			// 	transaction.InventoryMaterialID = mat.ID
+			// 	transaction.Quantity = rQty
+			// 	transaction.InventoryType = models.InventoryType_RESERVE
+			// 	transaction.InventoryTypeDescription = models.InventoryTypeDescription_ORDER
+			// 	transaction.ExistingQuantity = mat.Quantity
+			// 	transaction.ExistingReserve = mat.Reserve
+			// 	transaction.UpdatedQuantity = mat.Quantity
+			// 	transaction.UpdatedReserve = updatedReserve
+			// 	transaction.OrderID = &order.ID
+			// 	if err := tx.Create(&transaction).Error; err != nil {
+			// 		return err
+			// 	}
 
-				// create order reserving
-				var orderReserving models.OrderReserving
-				orderReserving.OrderID = order.ID
-				orderReserving.OrderBomID = orderBom.ID
-				orderReserving.ReceiptID = *mat.ReceiptID
-				orderReserving.InventoryMaterialID = mat.ID
-				orderReserving.Quantity = rQty
-				orderReserving.Status = models.OrderReservingStatus_Reserved
+			// 	// create order reserving
+			// 	var orderReserving models.OrderReserving
+			// 	orderReserving.OrderID = order.ID
+			// 	orderReserving.OrderBomID = orderBom.ID
+			// 	orderReserving.ReceiptID = *mat.ReceiptID
+			// 	orderReserving.InventoryMaterialID = mat.ID
+			// 	orderReserving.Quantity = rQty
+			// 	orderReserving.Status = models.OrderReservingStatus_Reserved
 
-				if err := tx.Create(&orderReserving).Error; err != nil {
-					return err
-				}
+			// 	if err := tx.Create(&orderReserving).Error; err != nil {
+			// 		return err
+			// 	}
 
-				// update inventory material and out of stock
-				mat.Reserve = updatedReserve
-				mat.AvailableQty -= rQty
-				mat.IsOutOfStock = isInventoryOutOfStock
-				if err := tx.Save(&mat).Error; err != nil {
-					return err
-				}
+			// 	// update inventory material and out of stock
+			// 	mat.Reserve = updatedReserve
+			// 	mat.AvailableQty -= rQty
+			// 	mat.IsOutOfStock = isInventoryOutOfStock
+			// 	if err := tx.Save(&mat).Error; err != nil {
+			// 		return err
+			// 	}
 
-				matID := mat.MaterialID
-				invID := mat.InventoryID
-				odc.SumMaterial(tx, "order", matID, invID)
-			}
+			// 	matID := mat.MaterialID
+			// 	invID := mat.InventoryID
+			// 	odc.SumMaterial(tx, "order", matID, invID)
+			// }
 
-			orderBom.ReservedQty = totalReserve
-			orderBom.IsFullFilled = isFullFilled
-			if err := tx.Save(&orderBom).Error; err != nil {
-				return err
-			}
+			// orderBom.ReservedQty = totalReserve
+			// orderBom.IsFullFilled = isFullFilled
+			// if err := tx.Save(&orderBom).Error; err != nil {
+			// 	return err
+			// }
 
-			if !isFullFilled {
-				var sg models.PurchaseSuggestion
-				sg.OrderBomID = orderBom.ID
-				sg.Status = models.PurchaseSuggestionStatus_Ready
-				if err := tx.Create(&sg).Error; err != nil {
-					return err
-				}
-			}
+			// if !isFullFilled {
+			// 	var sg models.PurchaseSuggestion
+			// 	sg.OrderBomID = orderBom.ID
+			// 	sg.Status = models.PurchaseSuggestionStatus_Ready
+			// 	if err := tx.Create(&sg).Error; err != nil {
+			// 		return err
+			// 	}
+			// }
+			// -------------
 		}
 		return nil
 	}); err != nil {
@@ -193,7 +194,7 @@ func (odc *OrderController) GetOrders(c *gin.Context) {
 		DB.
 		Preload("Drawing").
 		Preload("CreatedBy").
-		Preload("OrderBoms").
+		Preload("OrderBOMs").
 		Where("is_fg = ?", isFG).
 		Find(&orders).
 		Error; err != nil {
@@ -274,6 +275,6 @@ func (odc *OrderController) GetOrderBOMBySlug(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Order"})
 		return
 	}
-	c.JSON(http.StatusOK, order.OrderBoms)
+	c.JSON(http.StatusOK, order.OrderBOMs)
 
 }
