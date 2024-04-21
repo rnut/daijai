@@ -31,9 +31,9 @@ func (wc *WithdrawalController) GetWithdrawalBySlug(c *gin.Context) {
 	if err := wc.DB.
 		Preload("Project").
 		Preload("Order.Drawing").
-		Preload("WithdrawalApprovements.WithdrawalTransactions.OrderReserving.OrderBom.Bom.Material").
+		Preload("WithdrawalApprovements.WithdrawalTransactions.OrderReserving.OrderBom.BOM.Material").
 		Preload("WithdrawalApprovements.ApprovedBy").
-		Preload("Order.OrderBoms.Bom.Material").
+		Preload("Order.OrderBOMs.BOM.Material").
 		Preload("CreatedBy").
 		First(&withdrawal, "slug = ?", slug).Error; err != nil {
 		c.JSON(http.StatusPreconditionRequired, gin.H{"error": "Withdrawal not found"})
@@ -102,7 +102,7 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 	if err := wc.DB.
 		Preload("Drawing").
 		Preload("OrderBoms").
-		Preload("OrderBoms.Bom").
+		Preload("OrderBOMs.BOM").
 		Preload("OrderReservings").
 		First(&order).
 		Error; err != nil {
@@ -351,9 +351,9 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 	if err := wc.DB.
 		Preload("Project").
 		Preload("Order.Drawing").
-		Preload("WithdrawalApprovements.WithdrawalTransactions.OrderReserving.OrderBom.Bom.Material").
+		Preload("WithdrawalApprovements.WithdrawalTransactions.OrderReserving.OrderBom.BOM.Material").
 		Preload("WithdrawalApprovements.ApprovedBy").
-		Preload("Order.OrderBoms.Bom.Material").
+		Preload("Order.OrderBOMs.BOM.Material").
 		Preload("CreatedBy").
 		First(&withdrawal, wapm.ID).Error; err != nil {
 		c.JSON(http.StatusPreconditionRequired, gin.H{"error": "Withdrawal not found"})

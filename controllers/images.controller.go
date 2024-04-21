@@ -88,33 +88,13 @@ func (ctrl *ImageController) Download(c *gin.Context) {
 		})
 		return
 	}
-	if _, err := os.Stat(fileName); os.IsNotExist(err) {
-		uploader.UploadPath = fmt.Sprintf("%s/", directory)
-		log.Println("File not found, downloading from cloud storage")
-
-		file, err := os.Create(fileName)
-		if err != nil {
-			log.Println("Failed to create file:", fileName)
-			log.Println("error: ", err.Error())
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": err.Error(),
-			})
-			return
-		}
-
-		log.Println("Downloading file from cloud storage path: ", fileName)
-		err = uploader.DownloadFile(file, fileName)
-		if err != nil {
-			os.Remove(fileName)
-			log.Println("Failed to download file")
-			log.Println("error: ", err.Error())
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": err.Error(),
-			})
-			return
-		}
-		c.File(fileName)
-	} else {
-		c.File(fileName)
+	path := fmt.Sprintf("%s/%s", directory, fileName)
+	reader, err := uploader.DownloadFile(path)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
 	}
+	c.DataFromReader(http.StatusOK, reader.Attrs.Size, "image/jpeg", reader, map[string]string{})
 }

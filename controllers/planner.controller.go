@@ -36,7 +36,7 @@ func (rc *PlannerController) GetNewPlannerInfo(c *gin.Context) {
 
 	incompletedStatus := []string{models.OrderWithdrawStatus_Pending, models.OrderWithdrawStatus_Idle, models.OrderWithdrawStatus_Partial}
 	if err := rc.DB.
-		Preload("OrderBoms.Bom.Material").
+		Preload("OrderBOMs.BOM.Material").
 		Where("withdraw_status IN (?)", incompletedStatus).
 		Find(&response.IncompleteOrders).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch incomplete orders"})
@@ -142,7 +142,7 @@ func (rc *PlannerController) CreatePlanner(c *gin.Context) {
 			var inventoryMaterials []models.InventoryMaterial
 			if err := rc.DB.
 				Preload("Material").
-				Where("material_id = ?", orderBOM.Bom.MaterialID).
+				Where("material_id = ?", orderBOM.BOM.MaterialID).
 				Where("inventory_id IN ?", req.InventoryIDs).
 				Where("is_out_of_stock = ?", false).
 				Find(&inventoryMaterials).
@@ -152,7 +152,7 @@ func (rc *PlannerController) CreatePlanner(c *gin.Context) {
 
 			// check if inventoryMaterials empty
 			if len(inventoryMaterials) == 0 {
-				return fmt.Errorf("InventoryMaterial with MaterialID %d not found", orderBOM.Bom.MaterialID)
+				return fmt.Errorf("InventoryMaterial with MaterialID %d not found", orderBOM.BOM.MaterialID)
 			}
 			var sumReservedQty int64
 			for _, invMat := range inventoryMaterials {

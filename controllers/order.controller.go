@@ -49,7 +49,7 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 	}
 
 	var drawing models.Drawing
-	if err := odc.DB.Preload("Boms.Material").First(&drawing, request.DrawingID).Error; err != nil {
+	if err := odc.DB.Preload("BOMs.Material").First(&drawing, request.DrawingID).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Drawing"})
 		return
 	}
@@ -71,7 +71,7 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 
 		mainInventory := uint(1)
 
-		for _, bom := range drawing.Boms {
+		for _, bom := range drawing.BOMs {
 			// get InventoryMaterial that availableqty > 0 and not out of stock order by date created asc limit by sum of available == reserve
 			var inventoryMaterials []models.InventoryMaterial
 			if err := tx.
@@ -85,7 +85,7 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 
 			var orderBom models.OrderBom
 			orderBom.OrderID = order.ID
-			orderBom.BomID = bom.ID
+			orderBom.BOMID = bom.ID
 			orderBom.TargetQty = target
 			orderBom.IsCompletelyWithdraw = false
 			orderBom.WithdrawedQty = 0
@@ -208,7 +208,7 @@ func (odc *OrderController) GetOrderBySlug(c *gin.Context) {
 	slug := c.Param("slug")
 	if err := odc.
 		DB.
-		Preload("OrderBoms.Bom.Material").
+		Preload("OrderBOMs.BOM.Material").
 		Preload("Drawing").
 		Preload("Project").
 		Preload("CreatedBy").
@@ -268,7 +268,7 @@ func (odc *OrderController) GetOrderBOMBySlug(c *gin.Context) {
 	var order models.Order
 	if err := odc.
 		DB.
-		Preload("OrderBoms.Bom.Material").
+		Preload("OrderBOMs.BOM.Material").
 		Where("slug = ?", slug).
 		First(&order).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Order"})

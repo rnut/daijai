@@ -36,16 +36,12 @@ func (c *Uploader) UploadFile(file multipart.File, object string) error {
 }
 
 // Download file from GCS
-func (c *Uploader) DownloadFile(w io.Writer, object string) error {
+func (c *Uploader) DownloadFile(path string) (*storage.Reader, error) {
 	ctx := context.Background()
-	rc, err := c.Cl.Bucket(c.BucketName).Object(c.UploadPath + object).NewReader(ctx)
-	if err != nil {
-		return fmt.Errorf("Object(%q).NewReader: %v", object, err)
+	rc, e := c.Cl.Bucket(c.BucketName).Object(path).NewReader(ctx)
+	if e != nil {
+		return nil, e
 	}
 	defer rc.Close()
-
-	if _, err := io.Copy(w, rc); err != nil {
-		return fmt.Errorf("io.Copy: %v", err)
-	}
-	return nil
+	return rc, nil
 }

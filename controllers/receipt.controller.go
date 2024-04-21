@@ -305,7 +305,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 // 			// loop order boms
 // 			for _, orderBom := range orderBoms {
 // 				target := orderBom.TargetQty - (orderBom.ReservedQty + orderBom.WithdrawedQty)
-// 				matID := orderBom.Bom.MaterialID
+// 				matID := orderBom.BOM.MaterialID
 // 				qouta := matQuantity[matID]
 
 // 				if qouta == 0 {
@@ -389,7 +389,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 // 				// 	First(&withdrawal).Error; err != nil {
 // 				// 	return err
 // 				// }
-// 				// title := fmt.Sprintf("%s has been restock", orderBom.Bom.Material.Title)
+// 				// title := fmt.Sprintf("%s has been restock", orderBom.BOM.Material.Title)
 // 				// subtitle := "please check withdrawal request to see more details"
 // 				// notif := models.Notification{
 // 				// 	Type:      models.NotificationType_USER,

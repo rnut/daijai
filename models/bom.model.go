@@ -2,11 +2,11 @@ package models
 
 import "gorm.io/gorm"
 
-type Bom struct {
+type BOM struct {
 	gorm.Model
 	ID         uint
-	Quantity   int64 `form:"Quantity"`
-	DrawingID  uint  `form:"DrawingID"`
-	MaterialID uint  `form:"MaterialID"`
-	Material   Material
+	Quantity   int64
+	DrawingID  uint
+	MaterialID uint
+	Material   *Material
 }

@@ -37,7 +37,7 @@ func main() {
 		&models.Order{},
 		&models.Material{},
 		&models.AppLog{},
-		&models.Bom{},
+		&models.BOM{},
 		&models.Category{},
 		&models.Drawing{},
 		&models.Inventory{},

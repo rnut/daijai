@@ -23,8 +23,8 @@ type OrderBom struct {
 	gorm.Model
 	OrderID              uint
 	Order                Order
-	BomID                uint
-	Bom                  *Bom
+	BOMID                uint
+	BOM                  *BOM
 	TargetQty            int64
 	ReservedQty          int64
 	WithdrawedQty        int64
