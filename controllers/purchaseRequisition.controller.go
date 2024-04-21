@@ -40,12 +40,10 @@ func (prc *PurchaseRequisitionController) GetNewPRInfo(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve poRefs"})
 		return
 	}
-
-	mainInventoryID := uint(1)
 	var categories []models.Category
 	if err := prc.
 		DB.
-		Preload("Materials.Sums", "inventory_id = ?", mainInventoryID).
+		Preload("Materials.Sums").
 		Find(&categories).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve categories"})
 		return
@@ -149,12 +147,10 @@ func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Conte
 // GetPurchaseRequisition retrieves a PurchaseRequisition by Slug.
 func (prc *PurchaseRequisitionController) GetPurchaseRequisition(c *gin.Context) {
 	slug := c.Param("slug")
-
-	mainInventoryID := uint(1)
 	var purchaseRequisition models.Purchase
 	if err := prc.
 		DB.
-		Preload("PurchaseMaterials.Material.Sum", "inventory_id = ?", mainInventoryID).
+		Preload("PurchaseMaterials.Material.Sums").
 		Preload("PORefs").
 		Preload("CreatedBy").
 		First(&purchaseRequisition, "slug = ?", slug).
@@ -193,9 +189,19 @@ func (prc *PurchaseRequisitionController) GetPurchaseRequisition(c *gin.Context)
 		return
 	}
 
+	var categories []models.Category
+	if err := prc.
+		DB.
+		Preload("Materials.Sums").
+		Find(&categories).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve categories"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"purchaseRequisition": purchaseRequisition,
 		"transactions":        transactions,
+		"categories":          categories,
 	})
 }
 
@@ -305,7 +311,7 @@ func (prc *PurchaseRequisitionController) ApprovePurchaseRequisition(c *gin.Cont
 	mainInventoryID := uint(1)
 	var purchaseRequisition models.Purchase
 	if err := prc.DB.
-		Preload("PurchaseMaterials.Material.Sum", "inventory_id = ?", mainInventoryID).
+		Preload("PurchaseMaterials.Material.Sums", "inventory_id = ?", mainInventoryID).
 		Preload("PORefs").
 		Preload("CreatedBy").
 		First(&purchaseRequisition, "slug = ?", slug).Error; err != nil {
