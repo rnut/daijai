@@ -31,7 +31,7 @@ func (rc *ReceiptController) GetNewReceiptInfo(c *gin.Context) {
 
 	var categories []models.Category
 	if err := rc.DB.
-		Preload("Materials").
+		Preload("Materials.Sums").
 		Find(&categories).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Categories"})
 		return
@@ -73,7 +73,7 @@ func (rc *ReceiptController) GetEditReceiptInfo(c *gin.Context) {
 
 	var categories []models.Category
 	if err := rc.DB.
-		Preload("Materials").
+		Preload("Materials.Sums").
 		Find(&categories).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Categories"})
 		return
