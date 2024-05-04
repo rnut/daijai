@@ -83,6 +83,24 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 				return err
 			}
 
+			// get material
+			var material models.Material
+			if err := tx.Preload("Sums").First(&material, bom.MaterialID).Error; err != nil {
+				return err
+			}
+			var materialAvialableQty int64 = 0
+			for _, v := range *material.Sums {
+				materialAvialableQty += (v.Quantity - (v.Reserved + v.Withdrawed))
+			}
+			if materialAvialableQty < target {
+				var sg models.PurchaseSuggestion
+				sg.OrderBomID = orderBom.ID
+				sg.Status = models.PurchaseSuggestionStatus_Ready
+				if err := tx.Create(&sg).Error; err != nil {
+					return err
+				}
+			}
+
 			// reserve material
 			// mainInventory := uint(1)
 			// get InventoryMaterial that availableqty > 0 and not out of stock order by date created asc limit by sum of available == reserve
