@@ -82,12 +82,13 @@ func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Conte
 		Slug              string                    `json:"Slug"`
 		Notes             string                    `json:"Notes"`
 		PurchaseMaterials []models.PurchaseMaterial `json:"PurchaseMaterials"`
-		PORefs            []string                  `json:"PORefs"`
+		PORefs            []models.PORef            `json:"PORefs"`
 	}
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	fmt.Println("request: ", request.PORefs)
 
 	if err := prc.DB.Transaction(func(tx *gorm.DB) error {
 		// create Purchase
@@ -96,8 +97,8 @@ func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Conte
 			Notes:       request.Notes,
 			CreatedByID: member.ID,
 		}
+		purchase.PORefs = request.PORefs
 		if err := tx.Create(&purchase).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return err
 		}
 
@@ -109,7 +110,6 @@ func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Conte
 				Quantity:   v.Quantity,
 			}
 			if err := tx.Create(&prm).Error; err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return err
 			}
 		}
