@@ -116,7 +116,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		orders.POST("", ctrl.CreateOrder)
 		orders.GET("", ctrl.GetOrders)
 		orders.GET("/:slug", ctrl.GetOrderBySlug)
-		orders.GET("/bom/:slug", ctrl.GetOrderBOMBySlug)
+		orders.GET("/info/:slug", ctrl.GetOrderInfo)
 		orders.GET("/new/info", ctrl.GetNewOrderInfo)
 	}
 

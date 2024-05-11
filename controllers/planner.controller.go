@@ -152,7 +152,7 @@ func (rc *PlannerController) CreatePlanner(c *gin.Context) {
 
 			// check if inventoryMaterials empty
 			if len(inventoryMaterials) == 0 {
-				return fmt.Errorf("InventoryMaterial with MaterialID %d not found", orderBOM.BOM.MaterialID)
+				return fmt.Errorf("InventoryMaterial with MaterialID %d not found - InventoryID: %d", orderBOM.BOM.MaterialID, req.InventoryIDs)
 			}
 			var sumReservedQty int64
 			for _, invMat := range inventoryMaterials {
@@ -211,6 +211,11 @@ func (rc *PlannerController) CreatePlanner(c *gin.Context) {
 
 				sumReservedQty += available
 				requiredQty -= available
+
+				// sum material
+				if e := rc.SumMaterial(rc.DB, "CreatePlanner", orderBOM.BOM.MaterialID, invMat.InventoryID); e != nil {
+					return e
+				}
 			}
 			// update isFullfilled
 			orderBOM.ReservedQty += sumReservedQty

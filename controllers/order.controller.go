@@ -280,7 +280,7 @@ func (odc *OrderController) GetNewOrderInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func (odc *OrderController) GetOrderBOMBySlug(c *gin.Context) {
+func (odc *OrderController) GetOrderInfo(c *gin.Context) {
 	slug := c.Param("slug")
 
 	// Get the order
@@ -288,11 +288,12 @@ func (odc *OrderController) GetOrderBOMBySlug(c *gin.Context) {
 	if err := odc.
 		DB.
 		Preload("OrderBOMs.BOM.Material").
+		Preload("OrderReservings.InventoryMaterial.Material").
 		Where("slug = ?", slug).
 		First(&order).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Order"})
 		return
 	}
-	c.JSON(http.StatusOK, order.OrderBOMs)
+	c.JSON(http.StatusOK, order)
 
 }
