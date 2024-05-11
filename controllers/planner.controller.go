@@ -34,10 +34,12 @@ func (rc *PlannerController) GetNewPlannerInfo(c *gin.Context) {
 		return
 	}
 
-	incompletedStatus := []string{models.OrderWithdrawStatus_Pending, models.OrderWithdrawStatus_Idle, models.OrderWithdrawStatus_Partial}
+	incompletedStatus := []string{models.OrderStatus_Idle, models.OrderStatus_Pending, models.OrderStatus_InProgress}
+	incompletePlanedStatus := []string{models.OrderPlanStatus_None, models.OrderPlanStatus_Partial}
 	if err := rc.DB.
 		Preload("OrderBOMs.BOM.Material").
-		Where("withdraw_status IN (?)", incompletedStatus).
+		Where("status IN (?)", incompletedStatus).
+		Where("plan_status IN (?)", incompletePlanedStatus).
 		Find(&response.IncompleteOrders).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to fetch incomplete orders"})
 		return
@@ -104,6 +106,8 @@ func (rc *PlannerController) CreatePlanner(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	var orderIds []uint
 
 	// get all orderBOM by mapping orderBOMID from req
 	var orderBOMIDs []uint
@@ -226,7 +230,52 @@ func (rc *PlannerController) CreatePlanner(c *gin.Context) {
 			if err := rc.DB.Save(&orderBOM).Error; err != nil {
 				return err
 			}
+
+			orderIds = append(orderIds, orderBOM.OrderID)
 		}
+
+		// get order by orderIDs
+		var orders []models.Order
+		if err := rc.DB.
+			Where("id IN ?", orderIds).
+			Preload("OrderBOMs").
+			Find(&orders).
+			Error; err != nil {
+			return err
+		}
+
+		for _, order := range orders {
+			// check if order is completely withdraw
+			isCompletelyWithdraw := true
+			isFullfilled := true
+			for _, orderBOM := range *order.OrderBOMs {
+				if !orderBOM.IsCompletelyWithdraw {
+					isCompletelyWithdraw = false
+				}
+
+				if !orderBOM.IsFullFilled {
+					isFullfilled = false
+				}
+			}
+
+			if isCompletelyWithdraw {
+				order.Status = models.OrderStatus_Done
+				order.PlanStatus = models.OrderPlanStatus_Complete
+			} else {
+				if order.Status == models.OrderStatus_Idle {
+					order.Status = models.OrderStatus_Pending
+				}
+				if isFullfilled {
+					order.PlanStatus = models.OrderPlanStatus_Staged
+				} else {
+					order.PlanStatus = models.OrderPlanStatus_Partial
+				}
+			}
+			if err := rc.DB.Save(&order).Error; err != nil {
+				return err
+			}
+		}
+
 		return nil
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

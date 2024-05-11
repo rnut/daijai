@@ -14,7 +14,8 @@ type Order struct {
 	CreatedByID      uint   `gorm:"not null"`
 	CreatedBy        Member `gorm:"foreignkey:CreatedByID"`
 	OrderBOMs        *[]OrderBom
-	WithdrawStatus   string `gorm:"default:'pending'"`
+	Status           string `gorm:"default:'idle'"`
+	PlanStatus       string `gorm:"default:'none'"`
 	OrderReservings  *[]OrderReserving
 	IsFG             bool `gorm:"default:false"`
 }
@@ -33,10 +34,16 @@ type OrderBom struct {
 }
 
 const (
-	OrderWithdrawStatus_Idle     = "idle"
-	OrderWithdrawStatus_Pending  = "pending"
-	OrderWithdrawStatus_Partial  = "partial"
-	OrderWithdrawStatus_Complete = "complete"
+	OrderStatus_Idle       = "idle"
+	OrderStatus_Pending    = "pending"
+	OrderStatus_InProgress = "in-progress"
+	OrderStatus_Done       = "done"
+)
+const (
+	OrderPlanStatus_None     = "none"
+	OrderPlanStatus_Partial  = "partial"
+	OrderPlanStatus_Staged   = "staged"
+	OrderPlanStatus_Complete = "complete"
 )
 
 func (OrderBom) TableName() string {

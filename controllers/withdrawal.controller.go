@@ -119,7 +119,7 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 		withdrawal.ProjectID = uint(request.ProjectID)
 		withdrawal.Notes = request.Notes
 		withdrawal.CreatedByID = member.ID
-		withdrawal.WithdrawalStatus = models.WithdrawalStatus_Pending
+		withdrawal.WithdrawalStatus = models.WithdrawalStatus_InProgress
 
 		if err := tx.Create(&withdrawal).Error; err != nil {
 			return err
@@ -144,6 +144,13 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 				return err
 			}
 		}
+
+		// update order status
+		order.Status = models.OrderStatus_InProgress
+		if err := tx.Save(&order).Error; err != nil {
+			return err
+		}
+
 		// TODO: - create notification from base controller
 		return nil
 	}); err != nil {
@@ -226,7 +233,6 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 	var wapm models.WithdrawalApprovement
 	if err := wc.DB.
 		Preload("Withdrawal.Order.OrderBOMs").
-		Preload("WithdrawalTransactions").
 		Preload("WithdrawalTransactions.OrderReserving.InventoryMaterial").
 		Preload("WithdrawalTransactions.OrderReserving.OrderBom").
 		First(&wapm, withdrawalApprovementID).Error; err != nil {
@@ -303,7 +309,7 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 		}
 
 		for _, ob := range orderBoms {
-			completely := ob.ReservedQty == ob.WithdrawedQty
+			completely := ob.TargetQty == ob.WithdrawedQty
 			ob.IsCompletelyWithdraw = completely
 			if !completely {
 				isAllCompltelyWithdraw = false
@@ -316,10 +322,11 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 		}
 		if isAllCompltelyWithdraw {
 			withdrawal.WithdrawalStatus = models.WithdrawalStatus_Done
-			order.WithdrawStatus = models.OrderWithdrawStatus_Complete
+			order.Status = models.OrderStatus_Done
+			order.PlanStatus = models.OrderPlanStatus_Complete
 		} else {
 			withdrawal.WithdrawalStatus = models.WithdrawalStatus_InProgress
-			order.WithdrawStatus = models.OrderWithdrawStatus_Partial
+			order.Status = models.OrderStatus_InProgress
 		}
 		if err := tx.Save(&order).Error; err != nil {
 			return err
@@ -428,13 +435,6 @@ func (wc *WithdrawalController) CreatePartialWithdrawal(c *gin.Context) {
 				}
 			}
 		}
-
-		// update withdrawal status
-		withdrawal.WithdrawalStatus = models.WithdrawalStatus_Pending
-		if err := tx.Save(&withdrawal).Error; err != nil {
-			return err
-		}
-
 		return nil
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Withdraw"})
@@ -472,7 +472,7 @@ func (mc *WithdrawalController) GetNewWithdrawInfo(c *gin.Context) {
 	if err := mc.
 		DB.
 		Preload("Drawing").
-		Where("withdraw_status IN (?)", models.OrderWithdrawStatus_Pending).
+		Where("status IN (?)", models.OrderStatus_Pending).
 		Find(&orders).
 		Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Orders"})

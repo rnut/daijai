@@ -16,9 +16,7 @@ type Withdrawal struct {
 	WithdrawalApprovements *[]WithdrawalApprovement
 }
 
-// "idle", "pending", "in-progress", "done"
 const (
-	WithdrawalStatus_Pending    = "pending"
 	WithdrawalStatus_InProgress = "in-progress"
 	WithdrawalStatus_Done       = "done"
 )
