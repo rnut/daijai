@@ -29,7 +29,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	healthcheck := router.Group("health")
 	{
 		health := new(controllers.HealthController)
-		healthcheck.GET("/health", health.Status)
+		healthcheck.GET("/", health.Status)
 		healthcheck.GET("/ping", health.Ping)
 	}
 

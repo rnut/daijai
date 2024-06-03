@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,7 +16,14 @@ type HealthController struct{}
 // @Success 200 {string} Working!
 // @Router /health/health [get]
 func (h HealthController) Status(c *gin.Context) {
-	c.String(http.StatusOK, "Working!")
+	ginMode := os.Getenv("GIN_MODE")
+	host := os.Getenv("DB_HOST")
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Working!",
+		"version": "1.0.0",
+		"ginMode": ginMode,
+		"db-host": host,
+	})
 }
 
 // Status godoc
