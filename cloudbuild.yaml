@@ -1,9 +1,9 @@
 steps:
   - name: "gcr.io/cloud-builders/docker"
-    args: [ "build", "-t", "gcr.io/daijai/daijai-go:${SHORT_SHA}", ".", "-f", "Dockerfile" ]
+    args: [ "build", "-t", "gcr.io/daijai/daijai-go:1.118", ".", "-f", "Dockerfile" ]
 
   - name: "gcr.io/cloud-builders/docker"
     args: [ "push", "gcr.io/daijai/daijai-go" ]
 
   - name: "gcr.io/cloud-builders/gcloud"
-    args: [ "run", "deploy", "daijai-go", "--image", "gcr.io/daijai/daijai-go:${SHORT_SHA}", "--platform", "managed", "--region", "asia-southeast1", "--allow-unauthenticated" ]
+    args: [ "run", "deploy", "daijai-go", "--image", "gcr.io/daijai/daijai-go:1.118", "--platform", "managed", "--region", "asia-southeast1", "--allow-unauthenticated" ]
