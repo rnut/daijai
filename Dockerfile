@@ -3,6 +3,8 @@ FROM golang:1.21.3-bullseye as build
 WORKDIR /go/src
 
 COPY . .
+COPY .env.example.prd .env
+COPY keys/daijai-d4ab4aa6981d.json keys/daijai-d4ab4aa6981d.json
 RUN go mod download
 RUN go build -o ./app ./main.go
 

@@ -32,6 +32,7 @@ func (wc *WithdrawalController) GetWithdrawalBySlug(c *gin.Context) {
 		Preload("Project").
 		Preload("Order.Drawing").
 		Preload("WithdrawalApprovements.WithdrawalTransactions.OrderReserving.OrderBom.BOM.Material").
+		Preload("WithdrawalApprovements.WithdrawalAdminTransactions.Material").
 		Preload("WithdrawalApprovements.ApprovedBy").
 		Preload("Order.OrderBOMs.BOM.Material").
 		Preload("CreatedBy").
@@ -73,6 +74,198 @@ func (wc *WithdrawalController) GetAllWithdrawals(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"withdrawals": withdrawals})
 }
 
+func (wc *WithdrawalController) CreateNonSpecificOrderWithdrawal(c *gin.Context) {
+	var request struct {
+		Slug      string `json:"Slug"`
+		ProjectID int    `json:"ProjectID"`
+		Notes     string `json:"Notes"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var uid uint
+	if err := wc.GetUserID(c, &uid); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var member models.Member
+	if err := wc.getUserDataByUserID(wc.DB, uid, &member); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var withdrawal models.Withdrawal
+	var withdrawalApprovement models.WithdrawalApprovement
+	if err := wc.DB.Transaction(func(tx *gorm.DB) error {
+		withdrawal.Slug = request.Slug
+		withdrawal.ProjectID = uint(request.ProjectID)
+		withdrawal.Notes = request.Notes
+		withdrawal.CreatedByID = member.ID
+		withdrawal.WithdrawalStatus = models.WithdrawalStatus_InProgress
+
+		if err := tx.Create(&withdrawal).Error; err != nil {
+			return err
+		}
+
+		// create WithdrawalApprovement
+		withdrawalApprovement = models.WithdrawalApprovement{
+			WithdrawalID:                withdrawal.ID,
+			WithdrawalApprovementStatus: models.WithdrawalApprovementStatus_Pending,
+		}
+		if err := tx.Create(&withdrawalApprovement).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		message := fmt.Sprintf("Failed to create Withdraw: %s", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": message})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Withdrawal created successfully", "withdrawal": withdrawal})
+}
+
+func (wc *WithdrawalController) CreateWithdrawalAdmin(c *gin.Context) {
+	var request struct {
+		Slug              string                      `json:"Slug"`
+		ProjectID         int                         `json:"ProjectID"`
+		WithdrawMaterials []models.WithdrawalMaterial `json:"WithdrawMaterials"`
+		Notes             string                      `json:"Notes"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	log.Println("--------request-------")
+	log.Println(request)
+
+	var uid uint
+	if err := wc.GetUserID(c, &uid); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var member models.Member
+	if err := wc.getUserDataByUserID(wc.DB, uid, &member); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// check role is belong to admin or manager
+	canFindAll := member.Role == models.ROLE_Admin
+	if !canFindAll {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Permission Denied"})
+		return
+	}
+
+	var withdrawal models.Withdrawal
+	var withdrawalApprovement models.WithdrawalApprovement
+	if err := wc.DB.Transaction(func(tx *gorm.DB) error {
+
+		withdrawal.Slug = request.Slug
+		withdrawal.ProjectID = uint(request.ProjectID)
+		withdrawal.Notes = request.Notes
+		withdrawal.CreatedByID = member.ID
+		withdrawal.WithdrawalStatus = models.WithdrawalStatus_Done
+
+		if err := tx.Create(&withdrawal).Error; err != nil {
+			return err
+		}
+
+		// create WithdrawalApprovement
+		withdrawalApprovement = models.WithdrawalApprovement{
+			WithdrawalID:                withdrawal.ID,
+			WithdrawalApprovementStatus: models.WithdrawalApprovementStatus_Approved,
+			ApprovedByID:                &member.ID,
+		}
+		if err := tx.Create(&withdrawalApprovement).Error; err != nil {
+			return err
+		}
+
+		// create admin withdrawal transaction
+		for _, wm := range request.WithdrawMaterials {
+			awt := models.WithdrawalAdminTransaction{
+				WithdrawalApprovementID: withdrawalApprovement.ID,
+				MaterialID:              wm.MaterialID,
+				Quantity:                wm.Quantity,
+			}
+			if err := tx.Create(&awt).Error; err != nil {
+				return err
+			}
+
+			// get InventoryMaterial by id
+			var invMats []models.InventoryMaterial
+			if err := tx.
+				Where("material_id = ?", wm.MaterialID).
+				Where("available_qty > ?", 0).
+				Where("is_out_of_stock = ?", false).
+				Find(&invMats).
+				Error; err != nil {
+				return err
+			}
+
+			needQty := wm.Quantity
+			for _, invMat := range invMats {
+				if needQty == 0 {
+					break
+				}
+
+				existingQty := invMat.AvailableQty
+				if invMat.Quantity >= needQty {
+					invMat.Withdrawed += needQty
+					invMat.AvailableQty = invMat.AvailableQty - needQty
+					needQty = 0
+				} else {
+					invMat.Withdrawed += invMat.Quantity
+					invMat.AvailableQty = 0
+					needQty -= invMat.Quantity
+				}
+				log.Println(invMat.AvailableQty)
+
+				// update out of stock
+				if invMat.AvailableQty == 0 {
+					invMat.IsOutOfStock = true
+				}
+
+				if err := tx.Save(&invMat).Error; err != nil {
+					return err
+				}
+
+				// sum material
+				matID := invMat.MaterialID
+				invID := invMat.InventoryID
+				wc.SumMaterial(tx, "withdrawal", matID, invID)
+
+				// create material transaction
+				matTr := models.InventoryMaterialTransaction{
+					InventoryMaterialID:      invMat.ID,
+					Quantity:                 invMat.Quantity,
+					InventoryType:            models.InventoryType_OUTGOING,
+					InventoryTypeDescription: models.InventoryTypeDescription_WITHDRAWAL,
+					ExistingQuantity:         existingQty,
+					ExistingReserve:          invMat.Reserve,
+					UpdatedQuantity:          invMat.AvailableQty,
+					UpdatedReserve:           invMat.Reserve,
+					WithdrawalID:             &withdrawal.ID,
+				}
+				if err := tx.Create(&matTr).Error; err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}); err != nil {
+		message := fmt.Sprintf("Failed to create Withdraw: %s", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": message})
+		return
+
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Withdrawal created successfully", "withdrawal": withdrawal})
+}
+
 // CreateWithdrawal handles the creation of a new withdrawal transaction.
 func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 	var request struct {
@@ -104,7 +297,7 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 		Preload("OrderBOMs").
 		Preload("OrderBOMs.BOM").
 		Preload("OrderReservings").
-		First(&order).
+		First(&order, request.OrderID).
 		Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Order"})
 		return
@@ -112,10 +305,11 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 
 	var withdrawal models.Withdrawal
 	var withdrawalApprovement models.WithdrawalApprovement
+	orderID := uint(request.OrderID)
 
 	if err := wc.DB.Transaction(func(tx *gorm.DB) error {
 		withdrawal.Slug = request.Slug
-		withdrawal.OrderID = uint(request.OrderID)
+		withdrawal.OrderID = &orderID
 		withdrawal.ProjectID = uint(request.ProjectID)
 		withdrawal.Notes = request.Notes
 		withdrawal.CreatedByID = member.ID
@@ -137,7 +331,7 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 		for _, ob := range *order.OrderReservings {
 			withdrawTransaction := models.WithdrawalTransaction{
 				WithdrawalApprovementID: withdrawalApprovement.ID,
-				OrderReservingID:        ob.ID,
+				OrderReservingID:        &ob.ID,
 			}
 
 			if err := tx.Create(&withdrawTransaction).Error; err != nil {
@@ -428,7 +622,7 @@ func (wc *WithdrawalController) CreatePartialWithdrawal(c *gin.Context) {
 				// create withdrawal transaction
 				withdrawTransaction := models.WithdrawalTransaction{
 					WithdrawalApprovementID: withdrawalApprovement.ID,
-					OrderReservingID:        ob.ID,
+					OrderReservingID:        &ob.ID,
 				}
 				if err := tx.Create(&withdrawTransaction).Error; err != nil {
 					return err
@@ -459,6 +653,42 @@ func (mc *WithdrawalController) DeleteWithdraw(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Withdrawal deleted successfully"})
+}
+
+func (mc *WithdrawalController) GetNewWithdrawAdminInfo(c *gin.Context) {
+	// get projects
+	var projects []models.Project
+	if err := mc.DB.Find(&projects).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Projects"})
+		return
+	}
+
+	// get categories
+	var categories []models.Category
+	if err := mc.DB.
+		Preload("Materials.Sums").
+		Find(&categories).
+		Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Categories"})
+		return
+	}
+
+	// get slug
+	var slug string
+	if err := mc.RequestSlug(&slug, mc.DB, "withdrawals"); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Slug", "detail": err.Error()})
+		return
+	}
+
+	var response struct {
+		Slug       string
+		Projects   []models.Project
+		Categories []models.Category
+	}
+	response.Slug = slug
+	response.Projects = projects
+	response.Categories = categories
+	c.JSON(http.StatusOK, response)
 }
 
 func (mc *WithdrawalController) GetNewWithdrawInfo(c *gin.Context) {

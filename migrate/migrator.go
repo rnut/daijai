@@ -18,7 +18,6 @@ func init() {
 func main() {
 	config.ConnectDB()
 	db := config.DB
-	migrator := db.Migrator()
 	tables := []interface{}{
 		// relation tables
 		&models.InventoryMaterial{},
@@ -29,6 +28,7 @@ func main() {
 		&models.OrderReserving{},
 		&models.WithdrawalApprovement{},
 		&models.WithdrawalTransaction{},
+		&models.WithdrawalAdminTransaction{},
 		&models.Withdrawal{},
 		&models.PurchaseSuggestion{},
 		&models.PurchaseMaterial{},
@@ -53,16 +53,19 @@ func main() {
 		&models.TransferMaterial{},
 	}
 	for _, table := range tables {
-		migrator.DropTable(table)
+		// db.Migrator().DropTable(table)
 		db.AutoMigrate(&table)
 	}
+	// setup(db)
+}
 
-	initUsers(config.DB)
-	loadCategoriesFromCSV(config.DB, "./migrate/categories.csv")
-	loadMaterialsFromCSV(config.DB, "./migrate/materials.csv")
-	initInventory(config.DB)
-	initProject(config.DB)
-	initSlugger(config.DB)
+func setup(db *gorm.DB) {
+	initUsers(db)
+	loadCategoriesFromCSV(db, "./migrate/categories.csv")
+	loadMaterialsFromCSV(db, "./migrate/materials.csv")
+	initInventory(db)
+	initProject(db)
+	initSlugger(db)
 }
 
 func initSlugger(db *gorm.DB) {

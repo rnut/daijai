@@ -4,15 +4,15 @@
 
 ## TODO:
 
-- [ ] รับ quantity ทศนิยมได้
+- [x] รับ quantity ทศนิยมได้
 - [x] ทศนิยม 2 ตำแหน่ง
-- [ ] เพิ่ม process การเลือก order ที่จะผลิต
-- [ ] ตอนรับของ มีใส่ PR แล้ว suggest รายการของ PR มาให้เลือกได้ (suggest เหมือน PR)
-- [ ] sum ของ main-inventory , หน้างาน
+- [x] เพิ่ม process การเลือก order ที่จะผลิต
+- [x] ตอนรับของ มีใส่ PR แล้ว suggest รายการของ PR มาให้เลือกได้ (suggest เหมือน PR)
+- [x] sum ของ main-inventory , หน้างาน
 - [ ] ของหน้างาน ให้รู้ว่าเบิกไปโครงการไหน รับของโครงการไหน
-- [ ] เพิ่ม form เบิกแบบเลือกเข้า inventory
-- [ ] ตอนรับของ มีเลือกคลัง ถ้าไม่ใช่คลังหลัก ไม่มีการตัดไปทำ order
-- [ ] เพิ่ม transfer ของ คลังต่อคลัง
+- [x] เพิ่ม form เบิกแบบเลือกเข้า inventory
+- [x] ตอนรับของ มีเลือกคลัง ถ้าไม่ใช่คลังหลัก ไม่มีการตัดไปทำ order
+- [x] เพิ่ม transfer ของ คลังต่อคลัง
 
 ## DEPLOYMENT
 
@@ -24,68 +24,18 @@
 ### Build step
 
 1. change environment (.env file) to prod
-2. build `gcloud builds submit --config cloudbuild_run.yaml`
-3. deploy `gcloud run deploy daijai --platform managed --region asia-southeast1 --image gcr.io/daijai/daijai-go --allow-unauthenticated`
+2. comment some lines in `.gitignore`
+   - keys/\*
+   - .env
+   - .env\*
+3. build `gcloud builds submit --config cloudbuild_run.yaml`
+4. deploy `gcloud run deploy daijai --platform managed --region asia-southeast1 --image gcr.io/daijai/daijai-go --allow-unauthenticated`
 
 ### Test locally
 
 - `docker build --platform linux/amd64 -t .`
 - `PORT=8080 && docker run -p 9090:${PORT} -e PORT=${PORT} .`
 - `docker run --entrypoint=sh -ti daijai-go`
-
-<hr>
-![CI](https://github.com/nealajpatel/golang-rest-api-starter/actions/workflows/code-ql.yaml/badge.svg?branch=main&event=push)
-![CI](https://github.com/nealajpatel/golang-rest-api-starter/actions/workflows/pipeline.yaml/badge.svg?branch=main&event=push)
-
-Boilerplate API built using Golang: (Gin Framework for routing, Testify for testing, Swagger for Documentation, Viper for configuration, and Go Mod for dependency management). The intention is for this to be used as a starter application to build out a scalable and organized API service. With minimal configuration, this application can be built and deployed in a container using docker. We have done some research and have tried to stick to Golang best practices as much as possible. The routes and testing can be expanded to meet your needs.
-
-- [Gin Documentation](https://github.com/gin-gonic/gin)
-- [Testify Documentation](https://github.com/stretchr/testify)
-- [Swagger Documentation](https://swagger.io/docs/)
-- [Viper Documentation](https://github.com/spf13/viper)
-- [Go Mod Documentation](https://github.com/golang/go/wiki/Modules)
-
-## 🚀 Quick start
-
-1.  **Copy directory into your group/namespace**
-
-    This can be done by forking this repository into your namespace. From there you can remove the fork relationship and update the name. These can be done in the advanced settings
-
-1.  **Configure runner.**
-
-    Update the gitlab-ci.yml to use a runner that can build/deploy to your namespace. If using the one provided, an admin must add your project to the runner list.
-
-1.  **Update naming.**
-
-    Update the golang-rest-api-starter name throughout the project to your application name. This can be done with a simple find/replace
-
-1.  **Start coding!**
-
-    You should now be able to start coding. You can start expanding, building, and deploying. You can use make to build/ run your app:
-
-        make build
-        make run
-
-## 🧐 What's inside?
-
-A quick look at the top-level files and directories you'll see in this project.
-
-    .
-    ├── build
-    ├── config
-    ├── controllers
-    ├── docs
-    ├── middlewares
-    ├── server
-    ├── tests
-    ├── utils
-    ├── Dockerfile
-    ├── Makefile
-    ├── go.mod
-    ├── go.sum
-    ├── main.go
-    ├── .gitignore
-    └── README.md
 
 1.  **`/build`**: This directory contains the binary after a build
 
@@ -122,12 +72,3 @@ A quick look at the top-level files and directories you'll see in this project.
 There may be further configuration needed as you expand your application.
 
 **Configmap template:** You can update the dev.yml file to include your properties.
-
-### Contributors:
-
-- Neal Patel
-- Chris Elias
-
-```
-
-```

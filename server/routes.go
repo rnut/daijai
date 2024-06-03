@@ -124,12 +124,17 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	{
 		withdrawCtrl := controllers.NewWithdrawalController(db)
 		withdrawals.GET("/new/info", withdrawCtrl.GetNewWithdrawInfo)
+		withdrawals.POST("admin", withdrawCtrl.CreateWithdrawalAdmin)
 		withdrawals.POST("", withdrawCtrl.CreateWithdrawal)
+		withdrawals.POST("/admin/nonspec/withdraw",
+			middlewares.AuthMiddleware(models.ROLE_Admin, models.ROLE_Manager),
+			withdrawCtrl.CreateNonSpecificOrderWithdrawal)
 		withdrawals.POST("/partial", withdrawCtrl.CreatePartialWithdrawal)
 		withdrawals.GET("", withdrawCtrl.GetAllWithdrawals)
 		withdrawals.PUT("/:id", withdrawCtrl.UpdateWithdrawal)
 		withdrawals.GET("/:slug", withdrawCtrl.GetWithdrawalBySlug)
 		withdrawals.DELETE("/:id", withdrawCtrl.DeleteWithdraw)
+		withdrawals.GET("/new/admin/info", middlewares.AuthMiddleware(models.ROLE_Admin), withdrawCtrl.GetNewWithdrawAdminInfo)
 		withdrawals.PUT("/approve/:id",
 			middlewares.AuthMiddleware(models.ROLE_Admin, models.ROLE_Manager),
 			withdrawCtrl.ApproveWithdrawal)
@@ -219,7 +224,5 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		planner.GET("/materials", plannerCtrl.GetMaterialSumByInventory)
 		planner.POST("", plannerCtrl.CreatePlanner)
 	}
-
 	return router
-
 }

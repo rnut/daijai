@@ -27,12 +27,13 @@ db.sqlite
 .db-shm
 .db-wal
 
-.env
-.env*
 
 tmp/*
 build/*
 
 public/*
 main
-keys/*
+
+keys/
+.env
+.env*

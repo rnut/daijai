@@ -7,7 +7,7 @@ type Withdrawal struct {
 	Slug                   string `gorm:"unique"`
 	ProjectID              uint
 	Project                *Project
-	OrderID                uint
+	OrderID                *uint
 	Order                  *Order `gorm:"foreignkey:OrderID"`
 	Notes                  string
 	CreatedByID            uint    `gorm:"not null"`
@@ -20,3 +20,8 @@ const (
 	WithdrawalStatus_InProgress = "in-progress"
 	WithdrawalStatus_Done       = "done"
 )
+
+type WithdrawalMaterial struct {
+	MaterialID uint
+	Quantity   int64
+}
