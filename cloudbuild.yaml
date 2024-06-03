@@ -1,9 +1,35 @@
 steps:
-  - name: "gcr.io/cloud-builders/docker"
-    args: [ "build", "-t", "gcr.io/daijai/daijai-go:1.118", ".", "-f", "Dockerfile" ]
-
-  - name: "gcr.io/cloud-builders/docker"
-    args: [ "push", "gcr.io/daijai/daijai-go" ]
-
-  - name: "gcr.io/cloud-builders/gcloud"
-    args: [ "run", "deploy", "daijai-go", "--image", "gcr.io/daijai/daijai-go:1.118", "--platform", "managed", "--region", "asia-southeast1", "--allow-unauthenticated" ]
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - '-t'
+      - >-
+        gcr.io/daijai/daijai-go:$COMMIT_SHA
+      - .
+      - '-f'
+      - Dockerfile
+    id: Build
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - >-
+        gcr.io/daijai/daijai-go:$COMMIT_SHA
+    id: Push
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    args:
+      - run
+      - services
+      - update
+      - $_SERVICE_NAME
+      - '--platform=managed'
+      - >-
+        --image=gcr.io/daijai/daijai-go:$COMMIT_SHA
+      - >-
+        --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID,gcb-trigger-id=$_TRIGGER_ID
+      - '--region=$_DEPLOY_REGION'
+      - '--quiet'
+    id: Deploy
+    entrypoint: gcloud
+images:
+  - >-
+    gcr.io/daijai/daijai-go:$COMMIT_SHA
