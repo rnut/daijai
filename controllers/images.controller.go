@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"cloud.google.com/go/storage"
@@ -23,7 +22,6 @@ const (
 var uploader *models.Uploader
 
 func NewImageController() *ImageController {
-	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "keys/daijai-d4ab4aa6981d.json")
 	client, err := storage.NewClient(context.Background())
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
