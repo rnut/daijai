@@ -33,7 +33,7 @@
 
 ### Test locally
 
-- `docker build --platform linux/amd64 -t .`
+- `docker build --platform linux/amd64 -t daijai-go-1 .`
 - `PORT=8080 && docker run -p 9090:${PORT} -e PORT=${PORT} .`
 - `docker run --entrypoint=sh -ti daijai-go`
 
