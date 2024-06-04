@@ -175,7 +175,7 @@ func (rc *PlannerController) CreatePlanner(c *gin.Context) {
 				odrs := models.OrderReserving{
 					OrderID:             orderBOM.OrderID,
 					OrderBomID:          orderBOM.ID,
-					ReceiptID:           *invMat.ReceiptID,
+					ReceiptID:           invMat.ReceiptID,
 					InventoryMaterialID: invMat.ID,
 					Quantity:            available,
 					Status:              models.OrderReservingStatus_Reserved,

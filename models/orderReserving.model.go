@@ -4,7 +4,7 @@ type OrderReserving struct {
 	ID                  uint
 	OrderID             uint
 	OrderBomID          uint
-	ReceiptID           uint
+	ReceiptID           *uint
 	InventoryMaterialID uint
 	Status              string // OrderReservingStatus_Reserved, OrderReservingStatus_Withdrawed
 	Quantity            int64

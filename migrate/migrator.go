@@ -53,10 +53,10 @@ func main() {
 		&models.TransferMaterial{},
 	}
 	for _, table := range tables {
-		// db.Migrator().DropTable(table)
+		db.Migrator().DropTable(table)
 		db.AutoMigrate(&table)
 	}
-	// setup(db)
+	setup(db)
 }
 
 func setup(db *gorm.DB) {
