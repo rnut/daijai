@@ -281,41 +281,27 @@ func (mc *MaterialController) AdjustMaterialQuantity(c *gin.Context) {
 
 		// create inventory material
 		inventoryMaterial := models.InventoryMaterial{
-			InventoryID:  req.InventoryID,
-			MaterialID:   material.ID,
-			AdjustmentID: &adjustment.ID,
-			Quantity:     req.Quantity,
-			AvailableQty: req.Quantity,
-			IsOutOfStock: false,
-			Price:        adjustment.PricePerUnit,
+			InventoryID:           req.InventoryID,
+			MaterialID:            material.ID,
+			AdjustmentID:          &adjustment.ID,
+			Quantity:              req.Quantity,
+			AvailableQty:          req.Quantity,
+			IsOutOfStock:          false,
+			Price:                 adjustment.PricePerUnit,
+			InventoryMaterialType: models.InventoryMaterialType_Adjust,
 		}
 		if err := tx.Create(&inventoryMaterial).Error; err != nil {
 			return err
 		}
-
-		// count
-		var counter struct {
-			Quantity   int64
-			Reserved   int64
-			Withdrawed int64
-		}
-		if err := tx.
-			Model(&models.InventoryMaterial{}).
-			Select("SUM(quantity) as quantity, SUM(reserve) as reserved, SUM(withdrawed) as withdrawed").
-			Where("material_id = ?", material.ID).
-			Where("is_out_of_stock = ?", false).
-			Find(&counter).Error; err != nil {
-			return err
-		}
-
-		// update sum material inventory
-		mc.SumMaterial(tx, "receipt", material.ID, req.InventoryID)
 
 		return nil
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// update sum material inventory
+	mc.SumMaterial(mc.DB, "adjust", material.ID, req.InventoryID)
 
 	// reload material
 	if err := mc.DB.Preload("Sums").First(&material, materialID).Error; err != nil {

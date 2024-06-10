@@ -17,15 +17,6 @@ type Material struct {
 	Sums       *[]SumMaterialInventory
 }
 
-type SumMaterialInventory struct {
-	gorm.Model
-	MaterialID  uint
-	InventoryID uint
-	Quantity    int64
-	Reserved    int64
-	Withdrawed  int64
-}
-
 const (
 	MaterialType_FinishedGood = "fg"
 	MaterialType_BuiltIn      = "bi"

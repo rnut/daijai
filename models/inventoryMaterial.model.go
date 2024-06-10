@@ -12,7 +12,7 @@ type InventoryMaterial struct {
 	Quantity              int64
 	Reserve               int64
 	Withdrawed            int64
-	AvailableQty          int64 `gorm:"available_qty"`
+	AvailableQty          int64
 	Price                 int64
 	IsOutOfStock          bool
 	Material              *Material         `gorm:"foreignKey:MaterialID;references:ID"`
