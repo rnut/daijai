@@ -101,7 +101,11 @@ func (dc *DrawingController) GetDrawingByID(c *gin.Context) {
 	}
 
 	var drawing models.Drawing
-	if err := dc.DB.Preload("BOMs.Material.Category").Preload("CreatedBy").First(&drawing, drawingID).Error; err != nil {
+	if err := dc.DB.
+		Preload("BOMs.Material.Category").
+		Preload("BOMs.Material.Sums").
+		Preload("CreatedBy").
+		First(&drawing, drawingID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Drawing not found"})
 		return
 	}
