@@ -103,6 +103,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	drawings := router.Group("drawings")
 	{
 		drawingCtrl := controllers.NewDrawingController(db)
+		drawings.GET("/new/info/:type", drawingCtrl.GetNewDrawingInfo)
 		drawings.POST("", drawingCtrl.CreateDrawing)
 		drawings.GET("", drawingCtrl.GetDrawings)
 		drawings.GET("/:id", drawingCtrl.GetDrawingByID)

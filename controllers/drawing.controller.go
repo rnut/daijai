@@ -23,6 +23,24 @@ func NewDrawingController(db *gorm.DB) *DrawingController {
 	}
 }
 
+func (dc *DrawingController) GetNewDrawingInfo(c *gin.Context) {
+	isFg := c.Param("type") == models.MaterialType_FinishedGood
+	var response struct {
+		Categories []models.Category
+	}
+
+	var categories []models.Category
+	if err := dc.DB.
+		Preload("Materials.Sums").
+		Where("is_fg = ?", isFg).
+		Find(&categories).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Categories"})
+		return
+	}
+	response.Categories = categories
+	c.JSON(http.StatusOK, response)
+}
+
 func (dc *DrawingController) CreateDrawing(c *gin.Context) {
 	var uid uint
 	if err := dc.GetUserID(c, &uid); err != nil {
