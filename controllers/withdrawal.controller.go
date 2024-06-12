@@ -666,6 +666,10 @@ func (mc *WithdrawalController) GetNewWithdrawAdminInfo(c *gin.Context) {
 	// get categories
 	var categories []models.Category
 	if err := mc.DB.
+		Preload("Materials", func(db *gorm.DB) *gorm.DB {
+			db = db.Order("id asc")
+			return db
+		}).
 		Preload("Materials.Sums").
 		Find(&categories).
 		Error; err != nil {
