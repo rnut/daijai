@@ -57,3 +57,12 @@ func (Receipt) GenerateSlug() Slugger {
 		Value:     0,
 	}
 }
+
+func (ExtendOrder) GenerateSlug() Slugger {
+	return Slugger{
+		TableName: "extend_orders",
+		Prefix:    "EXT-ORD-",
+		Pad:       7,
+		Value:     0,
+	}
+}

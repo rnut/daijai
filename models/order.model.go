@@ -29,6 +29,7 @@ type OrderBom struct {
 	TargetQty            int64
 	ReservedQty          int64
 	WithdrawedQty        int64
+	AdjustQty            int64
 	IsFullFilled         bool // จองครบหรือไม่
 	IsCompletelyWithdraw bool // เบิกครบหรือไม่
 }
