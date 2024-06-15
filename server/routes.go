@@ -119,6 +119,14 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		orders.GET("/:slug", ctrl.GetOrderBySlug)
 		orders.GET("/info/:slug", ctrl.GetOrderInfo)
 		orders.GET("/new/info", ctrl.GetNewOrderInfo)
+
+		extCtrl := controllers.NewExtendOrdererController(db)
+		ext := orders.Group("extenders")
+		{
+			ext.GET("", extCtrl.GetExtendOrders)
+			ext.GET("/new/info", extCtrl.GetNewInfo)
+			ext.POST("", extCtrl.CreateExtendOrders)
+		}
 	}
 
 	withdrawals := router.Group("withdrawals")
@@ -224,6 +232,12 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		planner.GET("/new/info", plannerCtrl.GetNewPlannerInfo)
 		planner.GET("/materials", plannerCtrl.GetMaterialSumByInventory)
 		planner.POST("", plannerCtrl.CreatePlanner)
+	}
+
+	orderExtendsCtrl := controllers.NewExtendOrdererController(db)
+	orderExtends := router.Group("extenders")
+	{
+		orderExtends.GET("/new/info", orderExtendsCtrl.GetNewInfo)
 	}
 	return router
 }
