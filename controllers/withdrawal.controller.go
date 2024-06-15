@@ -31,7 +31,7 @@ func (wc *WithdrawalController) GetWithdrawalBySlug(c *gin.Context) {
 	if err := wc.DB.
 		Preload("Project").
 		Preload("Order.Drawing").
-		Preload("WithdrawalApprovements.WithdrawalTransactions.OrderReserving.OrderBom.BOM.Material").
+		Preload("WithdrawalApprovements.WithdrawalTransactions.OrderReserving.OrderBOM.BOM.Material").
 		Preload("WithdrawalApprovements.WithdrawalAdminTransactions.Material").
 		Preload("WithdrawalApprovements.ApprovedBy").
 		Preload("Order.OrderBOMs.BOM.Material").
@@ -428,7 +428,7 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 	if err := wc.DB.
 		Preload("Withdrawal.Order.OrderBOMs").
 		Preload("WithdrawalTransactions.OrderReserving.InventoryMaterial").
-		Preload("WithdrawalTransactions.OrderReserving.OrderBom").
+		Preload("WithdrawalTransactions.OrderReserving.OrderBOM").
 		First(&wapm, withdrawalApprovementID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Withdrawal not found", "id": withdrawalApprovementID})
 		return
@@ -448,7 +448,7 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 		}
 
 		for _, wts := range *wapm.WithdrawalTransactions {
-			odb := wts.OrderReserving.OrderBom
+			odb := wts.OrderReserving.OrderBOM
 			odb.WithdrawedQty += wts.OrderReserving.Quantity
 			odb.ReservedQty -= wts.OrderReserving.Quantity
 			if err := tx.Save(&odb).Error; err != nil {
@@ -494,7 +494,7 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 		var isAllCompltelyWithdraw = true
 		withdrawal := wapm.Withdrawal
 		order := withdrawal.Order
-		var orderBoms []models.OrderBom
+		var orderBoms []models.OrderBOM
 		if err := tx.
 			Where("order_id = ?", order.ID).
 			Find(&orderBoms).
@@ -552,7 +552,7 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 	if err := wc.DB.
 		Preload("Project").
 		Preload("Order.Drawing").
-		Preload("WithdrawalApprovements.WithdrawalTransactions.OrderReserving.OrderBom.BOM.Material").
+		Preload("WithdrawalApprovements.WithdrawalTransactions.OrderReserving.OrderBOM.BOM.Material").
 		Preload("WithdrawalApprovements.ApprovedBy").
 		Preload("Order.OrderBOMs.BOM.Material").
 		Preload("CreatedBy").
@@ -729,4 +729,156 @@ func (mc *WithdrawalController) GetNewWithdrawInfo(c *gin.Context) {
 	response.Projects = projects
 	response.Orders = orders
 	c.JSON(http.StatusOK, response)
+}
+
+func (mc *WithdrawalController) AdjustOrderReserving(c *gin.Context) {
+	orderReservingID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order reserving ID"})
+		return
+	}
+
+	var request struct {
+		WithdrawalID     int64 `json:"WithdrawalID"`
+		AdjustedQuantity int64 `json:"AdjustedQuantity"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var orderReserving models.OrderReserving
+	if err := mc.
+		DB.
+		Preload("InventoryMaterial").
+		First(&orderReserving, orderReservingID).
+		Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "OrderReserving not found"})
+		return
+	}
+
+	if orderReserving.Status == models.OrderReservingStatus_Withdrawed {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "OrderReserving is already withdrawn"})
+		return
+	}
+
+	// create db transaction
+	if err := mc.DB.Transaction(func(tx *gorm.DB) error {
+		diff := request.AdjustedQuantity - orderReserving.Quantity
+		needQty := diff
+		log.Printf("diff: %d\n", diff)
+		if orderReserving.InventoryMaterial.AvailableQty > 0 {
+			ivtm := orderReserving.InventoryMaterial
+			avialableQty := ivtm.AvailableQty
+			log.Printf("--------use same ivtm--------\n %d\n %+v\n", avialableQty, ivtm)
+
+			var used int64
+			if avialableQty >= diff {
+				log.Printf("use only one ivtm: avialableQty >= diff\n")
+				used = diff
+			} else {
+				log.Printf("cut off same ivtm\n")
+				used = avialableQty
+			}
+
+			if err := createMaterialTransaction(ivtm, used, orderReserving.OrderID, tx); err != nil {
+				return err
+			}
+
+			ivtm.Reserve += used
+			ivtm.AvailableQty -= used
+			ivtm.IsOutOfStock = ivtm.AvailableQty == 0
+			if err := tx.Save(&ivtm).Error; err != nil {
+				return err
+			}
+
+			// update order reservings
+			orderReserving.Quantity += used
+			// calculate needQty
+			needQty = diff - used
+		}
+
+		log.Printf("needQty: %d", needQty)
+		if needQty != 0 {
+			log.Printf("--------new ivtm--------\n needQty: %d", needQty)
+			// find available inventory material
+			var invMats []models.InventoryMaterial
+			if err := tx.
+				Where("material_id = ?", orderReserving.InventoryMaterial.MaterialID).
+				Where("available_qty > ?", 0).
+				Where("is_out_of_stock = ?", false).
+				Find(&invMats).
+				Error; err != nil {
+				return err
+			}
+			log.Printf("--------invMats--------\n%+v\n count: %d", invMats, len(invMats))
+			log.Printf("--------for loop--------\n")
+			for _, invMat := range invMats {
+				// existingReserve := invMat.Reserve
+				var used int64
+				if needQty == 0 {
+					break
+				}
+				log.Printf("invMat:%+v\n needQty: %d", invMat, needQty)
+
+				if invMat.AvailableQty >= needQty {
+					used = needQty
+					needQty = 0
+				} else {
+					used = invMat.AvailableQty
+					needQty -= invMat.Quantity
+				}
+
+				if err := createMaterialTransaction(&invMat, used, orderReserving.OrderID, tx); err != nil {
+					return err
+				}
+
+				invMat.Reserve += used
+				invMat.AvailableQty -= used
+				invMat.IsOutOfStock = invMat.AvailableQty == 0
+				if err := tx.Save(&invMat).Error; err != nil {
+					return err
+				}
+
+				// update order reservings
+				orderReserving.Quantity += used
+			}
+		}
+
+		// save order reserving
+		if err := tx.Save(&orderReserving).Error; err != nil {
+			return err
+		}
+
+		// sum inventory material
+		matID := orderReserving.InventoryMaterial.MaterialID
+		invID := orderReserving.InventoryMaterial.InventoryID
+		mc.SumMaterial(tx, "adjust-withdrawal", matID, invID)
+
+		return nil
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to adjust order reserving"})
+		return
+	}
+	c.JSON(http.StatusOK, orderReserving)
+}
+
+func createMaterialTransaction(invMat *models.InventoryMaterial, reserveQty int64, orderID uint, tx *gorm.DB) error {
+	matTr := models.InventoryMaterialTransaction{
+		InventoryMaterialID:      invMat.ID,
+		Quantity:                 invMat.Quantity,
+		InventoryType:            models.InventoryType_RESERVE,
+		InventoryTypeDescription: models.InventoryTypeDescription_ORDER,
+		ExistingQuantity:         invMat.Quantity,
+		ExistingReserve:          invMat.Reserve,
+		UpdatedQuantity:          invMat.Quantity,
+		UpdatedReserve:           invMat.Reserve + reserveQty,
+		OrderID:                  &orderID,
+	}
+	if err := tx.Create(&matTr).Error; err != nil {
+		return err
+	} else {
+		return nil
+	}
 }

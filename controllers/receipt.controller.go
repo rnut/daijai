@@ -285,7 +285,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 
 // func fillOrders() {
 // 			// get waiting material order boms
-// 			var orderBoms []models.OrderBom
+// 			var orderBoms []models.OrderBOM
 // 			withdrawStatuses := []string{models.OrderWithdrawStatus_Pending, models.OrderWithdrawStatus_Idle, models.OrderWithdrawStatus_Partial}
 // 			if err := rc.
 // 				DB.
@@ -300,7 +300,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 // 				return err
 // 			}
 
-// 			var filledOrderBomIDs []uint
+// 			var filledOrderBOMIDs []uint
 // 			// loop order boms
 // 			for _, orderBom := range orderBoms {
 // 				target := orderBom.TargetQty - (orderBom.ReservedQty + orderBom.WithdrawedQty)
@@ -323,7 +323,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 // 				// create order reserving
 // 				orderReserving := models.OrderReserving{
 // 					OrderID:             orderBom.OrderID,
-// 					OrderBomID:          orderBom.ID,
+// 					OrderBOMID:          orderBom.ID,
 // 					ReceiptID:           receipt.ID,
 // 					InventoryMaterialID: inventoryMaterialID,
 // 					Quantity:            quantity,
@@ -339,7 +339,7 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 // 				totalQty := orderBom.ReservedQty + orderBom.WithdrawedQty
 // 				if totalQty == orderBom.TargetQty {
 // 					orderBom.IsFullFilled = true
-// 					filledOrderBomIDs = append(filledOrderBomIDs, orderBom.ID)
+// 					filledOrderBOMIDs = append(filledOrderBOMIDs, orderBom.ID)
 // 				}
 // 				if err := tx.Save(&orderBom).Error; err != nil {
 // 					return err
@@ -409,10 +409,10 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 // 				// 	return err
 // 				// }
 // 			}
-// if len(filledOrderBomIDs) > 0 {
+// if len(filledOrderBOMIDs) > 0 {
 // 	if err := tx.
 // 		Model(&models.PurchaseSuggestion{}).
-// 		Where("id IN ?", filledOrderBomIDs).
+// 		Where("id IN ?", filledOrderBOMIDs).
 // 		Update("status", models.PurchaseSuggestionStatus_Done).
 // 		Error; err != nil {
 // 		return err

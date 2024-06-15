@@ -4,8 +4,8 @@ import "gorm.io/gorm"
 
 type PurchaseSuggestion struct {
 	gorm.Model
-	OrderBomID uint
-	OrderBom   *OrderBom `gorm:"foreignKey:OrderBomID"`
+	OrderBOMID uint
+	OrderBOM   *OrderBOM `gorm:"foreignKey:OrderBOMID"`
 	PurchaseID *uint
 	Purchase   *Purchase `gorm:"foreignKey:PurchaseID"`
 	Status     string

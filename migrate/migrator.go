@@ -24,7 +24,7 @@ func main() {
 		&models.InventoryMaterialTransaction{},
 		&models.SumMaterialInventory{},
 		&models.ReceiptMaterial{},
-		&models.OrderBom{},
+		&models.OrderBOM{},
 		&models.OrderReserving{},
 		&models.WithdrawalApprovement{},
 		&models.WithdrawalTransaction{},

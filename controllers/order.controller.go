@@ -73,7 +73,7 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 
 			target := bom.Quantity * order.ProducedQuantity
 
-			var orderBom models.OrderBom
+			var orderBom models.OrderBOM
 			orderBom.OrderID = order.ID
 			orderBom.BOMID = bom.ID
 			orderBom.TargetQty = target
@@ -94,7 +94,7 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 			}
 			if materialAvialableQty < target {
 				var sg models.PurchaseSuggestion
-				sg.OrderBomID = orderBom.ID
+				sg.OrderBOMID = orderBom.ID
 				sg.Status = models.PurchaseSuggestionStatus_Ready
 				if err := tx.Create(&sg).Error; err != nil {
 					return err

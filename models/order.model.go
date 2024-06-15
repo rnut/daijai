@@ -13,14 +13,14 @@ type Order struct {
 	Project          Project
 	CreatedByID      uint   `gorm:"not null"`
 	CreatedBy        Member `gorm:"foreignkey:CreatedByID"`
-	OrderBOMs        *[]OrderBom
+	OrderBOMs        *[]OrderBOM
 	Status           string `gorm:"default:'idle'"`
 	PlanStatus       string `gorm:"default:'none'"`
 	OrderReservings  *[]OrderReserving
 	IsFG             bool `gorm:"default:false"`
 }
 
-type OrderBom struct {
+type OrderBOM struct {
 	gorm.Model
 	OrderID              uint
 	Order                Order
@@ -47,6 +47,6 @@ const (
 	OrderPlanStatus_Complete = "complete"
 )
 
-func (OrderBom) TableName() string {
+func (OrderBOM) TableName() string {
 	return "order_boms"
 }
