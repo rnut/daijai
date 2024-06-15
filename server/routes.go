@@ -132,6 +132,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	withdrawals := router.Group("withdrawals")
 	{
 		withdrawCtrl := controllers.NewWithdrawalController(db)
+		withdrawals.POST("/orderReserving/adjust/:id", withdrawCtrl.AdjustOrderReserving)
 		withdrawals.GET("/new/info", withdrawCtrl.GetNewWithdrawInfo)
 		withdrawals.POST("admin", withdrawCtrl.CreateWithdrawalAdmin)
 		withdrawals.POST("", withdrawCtrl.CreateWithdrawal)
