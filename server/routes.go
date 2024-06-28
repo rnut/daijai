@@ -7,9 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin" // gin-swagger middleware
-
-	// swagger embed files
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -125,6 +123,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		{
 			ext.GET("", extCtrl.GetExtendOrders)
 			ext.GET("/new/info", extCtrl.GetNewInfo)
+			ext.GET("/:slug", extCtrl.GetExtendOrderBySlug)
 			ext.POST("", extCtrl.CreateExtendOrders)
 		}
 	}
@@ -231,6 +230,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	planner := router.Group("planner")
 	{
 		planner.GET("/new/info", plannerCtrl.GetNewPlannerInfo)
+		planner.GET("/extend/orders", plannerCtrl.GetExtendOrders)
 		planner.GET("/materials", plannerCtrl.GetMaterialSumByInventory)
 		planner.POST("", plannerCtrl.CreatePlanner)
 	}

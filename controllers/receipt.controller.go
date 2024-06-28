@@ -174,6 +174,12 @@ func (rc *ReceiptController) ApproveReceipt(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
 		return
 	}
+
+	if receipt.IsApproved {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Receipt already approved"})
+		return
+	}
+
 	if err := rc.DB.Transaction(func(tx *gorm.DB) error {
 		// create PORef
 		poRef := models.PORef{

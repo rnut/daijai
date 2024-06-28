@@ -27,13 +27,13 @@ func (wc *ExtendOrdererController) GetExtendOrders(c *gin.Context) {
 		DB.
 		Preload("Project").
 		Preload("ExtendOrderBOMs.Material").
+		Preload("CreatedBy").
 		Find(&orders).
 		Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch ExtendOrders"})
 		return
 	}
 	c.JSON(http.StatusOK, orders)
-
 }
 
 func (wc *ExtendOrdererController) GetNewInfo(c *gin.Context) {
@@ -76,6 +76,23 @@ func (wc *ExtendOrdererController) GetNewInfo(c *gin.Context) {
 	result.Slug = slug
 
 	c.JSON(http.StatusOK, result)
+}
+
+func (odc *ExtendOrdererController) GetExtendOrderBySlug(c *gin.Context) {
+	var order models.ExtendOrder
+	slug := c.Param("slug")
+	if err := odc.
+		DB.
+		Preload("ExtendOrderBOMs.Material").
+		Preload("Project").
+		Preload("CreatedBy").
+		Where("slug = ?", slug).
+		First(&order).
+		Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get ExtendOrder"})
+		return
+	}
+	c.JSON(http.StatusOK, order)
 }
 
 func (odc *ExtendOrdererController) CreateExtendOrders(c *gin.Context) {

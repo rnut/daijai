@@ -65,14 +65,12 @@ func (bc *BaseController) SumMaterial(db *gorm.DB, tag string, matID uint, invID
 	fmt.Println("========================================")
 	// count
 	var counter struct {
-		Quantity   int64
-		Reserved   int64
-		Withdrawed int64
-		Price      int64
+		Quantity int64
+		Price    int64
 	}
 	if err := db.
 		Model(&models.InventoryMaterial{}).
-		Select("SUM(quantity) as Quantity,SUM(reserve) as Reserved,SUM(withdrawed) as Withdrawed,SUM(price) as Price, Ceil(SUM(available_qty * price) / SUM(available_qty)) as Price").
+		Select("SUM(available_qty) as Quantity, SUM(price) as Price, Ceil(SUM(available_qty * price) / SUM(available_qty)) as Price").
 		Where("material_id = ?", matID).
 		Where("inventory_id = ?", invID).
 		Where("is_out_of_stock = ?", false).
@@ -95,8 +93,6 @@ func (bc *BaseController) SumMaterial(db *gorm.DB, tag string, matID uint, invID
 	sumMaterialInventory.MaterialID = matID
 	sumMaterialInventory.InventoryID = invID
 	sumMaterialInventory.Quantity = counter.Quantity
-	sumMaterialInventory.Reserved = counter.Reserved
-	sumMaterialInventory.Withdrawed = counter.Withdrawed
 	sumMaterialInventory.Price = counter.Price
 	if err := db.Save(&sumMaterialInventory).Error; err != nil {
 		return err

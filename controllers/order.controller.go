@@ -90,7 +90,7 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 			}
 			var materialAvialableQty int64 = 0
 			for _, v := range *material.Sums {
-				materialAvialableQty += (v.Quantity - (v.Reserved + v.Withdrawed))
+				materialAvialableQty += v.Quantity
 			}
 			if materialAvialableQty < target {
 				var sg models.PurchaseSuggestion

@@ -6,7 +6,7 @@ type ExtendOrder struct {
 	gorm.Model
 	Slug            string `gorm:"unique"`
 	ProjectID       uint
-	Project         *Project
+	Project         *Project `gorm:"foreignkey:ProjectID"`
 	Notes           string
 	CreatedByID     uint    `gorm:"not null"`
 	CreatedBy       *Member `gorm:"foreignkey:CreatedByID"`

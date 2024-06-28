@@ -3,6 +3,7 @@ package controllers
 import (
 	"daijai/models"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -48,6 +49,24 @@ func (rc *PlannerController) GetNewPlannerInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func (rc *PlannerController) GetExtendOrders(c *gin.Context) {
+	incompletedStatus := []string{models.OrderStatus_Idle, models.OrderStatus_Pending, models.OrderStatus_InProgress}
+
+	var response []models.ExtendOrder
+	if err := rc.DB.
+		Preload("Project").
+		Preload("ExtendOrderBOMs.Material").
+		Preload("CreatedBy").
+		Where("status IN (?)", incompletedStatus).
+		Find(&response).
+		Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch ExtendOrders"})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 // get materials sum by inventory
 func (rc *PlannerController) GetMaterialSumByInventory(c *gin.Context) {
 	params := c.Query("inventoriesIDs")
@@ -80,8 +99,8 @@ func (rc *PlannerController) GetMaterialSumByInventory(c *gin.Context) {
 func (rc *PlannerController) CreatePlanner(c *gin.Context) {
 	var req struct {
 		Plans        []models.PlanModel `json:"plans"`
-		ExtendPlans  []models.PlanModel `json:"extend_plans"`
-		InventoryIDs []int              `json:"inventoryIDs"`
+		InventoryIDs []int64            `json:"inventoryIDs"`
+		MaterialIDs  []int64            `json:"materialIDs"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -89,314 +108,379 @@ func (rc *PlannerController) CreatePlanner(c *gin.Context) {
 	}
 
 	var orderIds []uint
+	var extendOrderIds []uint
 
-	// get all orderBOM by mapping orderBOMID from req
-	var orderBOMIDs []uint
 	for _, v := range req.Plans {
-		orderBOMIDs = append(orderBOMIDs, v.OrderBOMID)
+		if v.Type == models.PlanType_Order {
+			orderIds = append(orderIds, v.ID)
+		} else if v.Type == models.PlanType_ExtendOrder {
+			extendOrderIds = append(extendOrderIds, v.ID)
+		}
 	}
-	var orderBOMs []models.OrderBOM
+
+	var orders []models.Order
 	if err := rc.DB.
-		Preload("BOM.Material").
-		Where("id IN ?", orderBOMIDs).
-		Where("is_full_filled = ?", false).
-		Where("is_completely_withdraw = ?", false).
-		Find(&orderBOMs).
+		Preload("OrderBOMs.BOM.Material").
+		Where("id IN ?", orderIds).
+		Find(&orders).
 		Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch orderBOMs"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch orders"})
 		return
 	}
 
-	var orderReserving []models.OrderReserving
+	orderMaps := make(map[uint]models.Order)
+	for _, v := range orders {
+		orderMaps[v.ID] = v
+	}
+
+	var extendOrders []models.ExtendOrder
+	if err := rc.DB.
+		Preload("ExtendOrderBOMs").
+		Where("id IN ?", extendOrderIds).
+		Find(&extendOrders).
+		Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch extend orders"})
+		return
+	}
+
+	extendOrderMaps := make(map[uint]models.ExtendOrder)
+	for _, v := range extendOrders {
+		extendOrderMaps[v.ID] = v
+	}
+
+	var inventoryMaterials []models.InventoryMaterial
+	if err := rc.DB.
+		Preload("Material").
+		Where("material_id IN (?)", req.MaterialIDs).
+		Where("inventory_id IN ?", req.InventoryIDs).
+		Where("is_out_of_stock = ?", false).
+		Find(&inventoryMaterials).
+		Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch inventory materials"})
+	}
+
 	if err := rc.DB.Transaction(func(tx *gorm.DB) error {
 		for _, v := range req.Plans {
-			requiredQty := v.Quantity
-			// get orderBOMs by orderBOMID
-			var orderBOM models.OrderBOM
-			for _, odb := range orderBOMs {
-				if odb.ID == v.OrderBOMID {
-					orderBOM = odb
-					break
+			switch v.Type {
+			case models.PlanType_Order:
+				order := orderMaps[v.ID]
+				boms := order.OrderBOMs
+				for _, bom := range *boms {
+					if err := rc.createPlanOrder(&bom, &inventoryMaterials, tx); err != nil {
+						return err
+					}
 				}
-			}
-			// check if orderBom empty
-			if orderBOM.ID == 0 {
-				return fmt.Errorf("OrderBOM with ID %d not found", v.OrderBOMID)
-			}
-
-			var inventoryMaterials []models.InventoryMaterial
-			if err := tx.
-				Preload("Material").
-				Where("material_id = ?", orderBOM.BOM.MaterialID).
-				Where("inventory_id IN ?", req.InventoryIDs).
-				Where("is_out_of_stock = ?", false).
-				Find(&inventoryMaterials).
-				Error; err != nil {
-				return err
-			}
-
-			// check if inventoryMaterials empty
-			if len(inventoryMaterials) == 0 {
-				return fmt.Errorf("InventoryMaterial with MaterialID %d not found - InventoryID: %d", orderBOM.BOM.MaterialID, req.InventoryIDs)
-			}
-			var sumReservedQty int64
-			for _, invMat := range inventoryMaterials {
-				var available int64
-				if requiredQty <= 0 {
-					break
+			case models.PlanType_ExtendOrder:
+				extendOrder := extendOrderMaps[v.ID]
+				boms := extendOrder.ExtendOrderBOMs
+				for _, bom := range *boms {
+					if err := rc.createPlanExtendOrder(&bom, &inventoryMaterials, tx); err != nil {
+						return err
+					}
 				}
-
-				if invMat.AvailableQty >= requiredQty {
-					available = requiredQty
-				} else {
-					available = invMat.AvailableQty
-				}
-
-				// create OrderReserving
-				odrs := models.OrderReserving{
-					OrderID:             orderBOM.OrderID,
-					OrderBOMID:          orderBOM.ID,
-					ReceiptID:           invMat.ReceiptID,
-					InventoryMaterialID: invMat.ID,
-					Quantity:            available,
-					Status:              models.OrderReservingStatus_Reserved,
-				}
-				if err := tx.Create(&odrs).Error; err != nil {
-					return err
-				}
-				orderReserving = append(orderReserving, odrs)
-
-				// create inventory material transaction
-				transaction := models.InventoryMaterialTransaction{
-					InventoryMaterialID:      invMat.ID,
-					Quantity:                 available,
-					InventoryType:            models.InventoryType_RESERVE,
-					InventoryTypeDescription: models.InventoryTypeDescription_ORDER,
-					ExistingQuantity:         invMat.Quantity,
-					ExistingReserve:          invMat.Reserve,
-					UpdatedQuantity:          invMat.Quantity,
-					UpdatedReserve:           invMat.Reserve + available,
-					OrderID:                  &orderBOM.OrderID,
-				}
-				if err := tx.Create(&transaction).Error; err != nil {
-					return err
-				}
-
-				// update inventory material
-				invMat.AvailableQty -= available
-				invMat.Reserve += available
-
-				// update inventory material is out of stock
-				if invMat.AvailableQty == 0 {
-					invMat.IsOutOfStock = true
-				}
-				if err := tx.Save(&invMat).Error; err != nil {
-					return err
-				}
-
-				sumReservedQty += available
-				requiredQty -= available
-
-				// sum material
-				if e := rc.SumMaterial(rc.DB, "CreatePlanner", orderBOM.BOM.MaterialID, invMat.InventoryID); e != nil {
-					return e
-				}
-			}
-			// update isFullfilled
-			orderBOM.ReservedQty += sumReservedQty
-			sumAllQuantity := orderBOM.ReservedQty + orderBOM.WithdrawedQty
-			if sumAllQuantity == orderBOM.TargetQty {
-				orderBOM.IsFullFilled = true
-			}
-			if err := tx.Save(&orderBOM).Error; err != nil {
-				return err
-			}
-
-			orderIds = append(orderIds, orderBOM.OrderID)
-		}
-
-		// get order by orderIDs
-		var orders []models.Order
-		if err := tx.
-			Where("id IN ?", orderIds).
-			Preload("OrderBOMs").
-			Find(&orders).
-			Error; err != nil {
-			return err
-		}
-
-		for _, order := range orders {
-			// check if order is completely withdraw
-			isCompletelyWithdraw := true
-			isFullfilled := true
-			for _, orderBOM := range *order.OrderBOMs {
-				if !orderBOM.IsCompletelyWithdraw {
-					isCompletelyWithdraw = false
-				}
-
-				if !orderBOM.IsFullFilled {
-					isFullfilled = false
-				}
-			}
-
-			if isCompletelyWithdraw {
-				order.Status = models.OrderStatus_Done
-				order.PlanStatus = models.OrderPlanStatus_Complete
-			} else {
-				if order.Status == models.OrderStatus_Idle {
-					order.Status = models.OrderStatus_Pending
-				}
-				if isFullfilled {
-					order.PlanStatus = models.OrderPlanStatus_Staged
-				} else {
-					order.PlanStatus = models.OrderPlanStatus_Partial
-				}
-			}
-			if err := tx.Save(&order).Error; err != nil {
-				return err
+			default:
+				return fmt.Errorf("invalid PlanType")
 			}
 		}
 
-		result := rc.planExtendOrder(&req.ExtendPlans, req.InventoryIDs, tx)
+		rc.updateOrderStatus(orderIds, extendOrderIds, tx)
 
-		return result
+		return nil
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"orderReservings": orderReserving,
-	})
+	// loop through materialIDs, inventoryIDs, and sum material
+	for _, matID := range req.MaterialIDs {
+		for _, invID := range req.InventoryIDs {
+			uMatID := uint(matID)
+			uInvID := uint(invID)
+			if err := rc.SumMaterial(rc.DB, "CreatePlanner", uMatID, uInvID); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Planner created successfully"})
 }
 
-// ----------------
-// Extend Plan
-// ----------------
-func (rc *PlannerController) planExtendOrder(plans *[]models.PlanModel, inventories []int, DB *gorm.DB) error {
-
-	if len(*plans) == 0 {
+func (rc *PlannerController) createPlanOrder(bom *models.OrderBOM, inventoryMaterials *[]models.InventoryMaterial, DB *gorm.DB) error {
+	if bom.IsFullFilled || bom.IsCompletelyWithdraw {
 		return nil
 	}
-	var orderExtendIds []uint
-	for _, v := range *plans {
-		orderExtendIds = append(orderExtendIds, v.OrderBOMID)
+
+	requiredQty := bom.TargetQty - (bom.ReservedQty + bom.WithdrawedQty)
+	if requiredQty <= 0 {
+		return nil
 	}
 
-	var orderExtendBOMs []models.ExtendOrderBOM
-	if err := DB.
-		Preload("ExtendOrderBOMs.Material").
-		Where("id IN ?", orderExtendIds).
-		Where("is_full_filled = ?", false).
-		Where("is_completely_withdraw = ?", false).
-		Find(&orderExtendBOMs).
+	sumUsing := int64(0)
+
+	for index, invMat := range *inventoryMaterials {
+		log.Println("-------before----------")
+		log.Println("invMat: ", invMat.ID)
+		log.Println("requiredQty: ", requiredQty)
+		log.Println("invMat.AvailableQty: ", invMat.AvailableQty)
+		log.Println("invMat.Reserve: ", invMat.Reserve)
+		log.Println("sumUsing: ", sumUsing)
+		log.Println("-----------------")
+
+		if requiredQty <= 0 {
+			log.Println("---break requiredQty <= 0---")
+			break
+		}
+
+		available := invMat.AvailableQty
+		var usingQty int64
+		if available >= requiredQty {
+			usingQty = requiredQty
+		} else {
+			usingQty = invMat.AvailableQty
+		}
+		log.Println("usingQty: ", usingQty)
+
+		if usingQty <= 0 {
+			continue
+		}
+
+		// create order reserving
+		orderReserving := models.OrderReserving{
+			OrderID:             bom.OrderID,
+			OrderBOMID:          bom.ID,
+			ReceiptID:           invMat.ReceiptID,
+			InventoryMaterialID: invMat.ID,
+			Quantity:            usingQty,
+			Status:              models.OrderReservingStatus_Reserved,
+		}
+		if err := DB.Create(&orderReserving).Error; err != nil {
+			return err
+		}
+
+		// create inventory material transaction
+		transaction := models.InventoryMaterialTransaction{
+			InventoryMaterialID:      invMat.ID,
+			Quantity:                 usingQty,
+			InventoryType:            models.InventoryType_RESERVE,
+			InventoryTypeDescription: models.InventoryTypeDescription_ORDER,
+			ExistingQuantity:         invMat.Quantity,
+			ExistingReserve:          invMat.Reserve,
+			UpdatedQuantity:          invMat.Quantity,
+			UpdatedReserve:           invMat.Reserve + usingQty,
+			OrderID:                  &bom.OrderID,
+		}
+		if err := DB.Create(&transaction).Error; err != nil {
+			return err
+		}
+
+		// update inventory material
+		invMat.AvailableQty -= usingQty
+		invMat.Reserve += usingQty
+		invMat.IsOutOfStock = invMat.AvailableQty == 0
+		if err := DB.Save(&invMat).Error; err != nil {
+			return err
+		}
+
+		// update inventory material reference
+		(*inventoryMaterials)[index].AvailableQty = invMat.AvailableQty
+		(*inventoryMaterials)[index].Reserve = invMat.Reserve
+		(*inventoryMaterials)[index].IsOutOfStock = invMat.IsOutOfStock
+
+		// print memory address of invMat and (*inventoryMaterials)[index]
+		log.Println("-------print memory address of invMat and (*inventoryMaterials)[index]-------")
+		fmt.Println((*inventoryMaterials)[index])
+		fmt.Println(invMat)
+
+		// update requiredQty
+		requiredQty -= usingQty
+		sumUsing += usingQty
+
+		log.Println("-------after----------")
+		log.Println("invMat.AvailableQty: ", invMat.AvailableQty)
+		log.Println("invMat.Reserve: ", invMat.Reserve)
+		log.Println("sumUsing: ", sumUsing)
+		log.Println("requiredQty: ", requiredQty)
+		log.Println("-------end----------")
+	}
+	log.Println("---end of invmats---")
+
+	// update isFullfilled
+	bom.ReservedQty += sumUsing
+	sumAllQuantity := bom.ReservedQty + bom.WithdrawedQty
+	bom.IsFullFilled = sumAllQuantity == bom.TargetQty
+	if err := DB.Save(bom).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (rc *PlannerController) createPlanExtendOrder(bom *models.ExtendOrderBOM, inventoryMaterials *[]models.InventoryMaterial, DB *gorm.DB) error {
+	if bom.IsFullFilled || bom.IsCompletelyWithdraw {
+		return nil
+	}
+
+	requiredQty := bom.Quantity - (bom.ReservedQty + bom.WithdrawedQty)
+	if requiredQty <= 0 {
+		return nil
+	}
+
+	sumUsing := int64(0)
+
+	for index, invMat := range *inventoryMaterials {
+		if requiredQty <= 0 {
+			break
+		}
+
+		available := invMat.AvailableQty
+		var usingQty int64
+		if available >= requiredQty {
+			usingQty = requiredQty
+		} else {
+			usingQty = invMat.AvailableQty
+		}
+
+		if usingQty <= 0 {
+			continue
+		}
+
+		// create order reserving
+		orderReserving := models.ExtendOrderReserving{
+			ExtendOrderID:       bom.ExtendOrderID,
+			ExtendOrderBOMID:    bom.ID,
+			ReceiptID:           invMat.ReceiptID,
+			InventoryMaterialID: invMat.ID,
+			Status:              models.OrderReservingStatus_Reserved,
+			Quantity:            usingQty,
+		}
+		if err := DB.Create(&orderReserving).Error; err != nil {
+			return err
+		}
+
+		// create inventory material transaction
+		transaction := models.InventoryMaterialTransaction{
+			InventoryMaterialID:      invMat.ID,
+			Quantity:                 usingQty,
+			InventoryType:            models.InventoryType_RESERVE,
+			InventoryTypeDescription: models.InventoryTypeDescription_EXTEND_ORDER,
+			ExistingQuantity:         invMat.Quantity,
+			ExistingReserve:          invMat.Reserve,
+			UpdatedQuantity:          invMat.Quantity,
+			UpdatedReserve:           invMat.Reserve + usingQty,
+			ExtendOrderID:            &bom.ExtendOrderID,
+		}
+		if err := DB.Create(&transaction).Error; err != nil {
+			return err
+		}
+
+		// update inventory material
+		invMat.AvailableQty -= usingQty
+		invMat.Reserve += usingQty
+		invMat.IsOutOfStock = invMat.AvailableQty == 0
+		if err := DB.Save(&invMat).Error; err != nil {
+			return err
+		}
+
+		// update inventory material reference
+		(*inventoryMaterials)[index].AvailableQty = invMat.AvailableQty
+		(*inventoryMaterials)[index].Reserve = invMat.Reserve
+		(*inventoryMaterials)[index].IsOutOfStock = invMat.IsOutOfStock
+
+		// update requiredQty
+		requiredQty -= usingQty
+		sumUsing += usingQty
+
+		// update isFullfilled
+		bom.ReservedQty += sumUsing
+		sumAllQuantity := bom.ReservedQty + bom.WithdrawedQty
+		bom.IsFullFilled = sumAllQuantity == bom.Quantity
+		if err := DB.Save(bom).Error; err != nil {
+			return err
+		}
+		return nil
+	}
+	return nil
+}
+
+func (rc *PlannerController) updateOrderStatus(orderIDs []uint, extendOrderIDs []uint, TX *gorm.DB) error {
+	// get order by orderIDs
+	var orders []models.Order
+	if err := TX.
+		Where("id IN ?", orderIDs).
+		Preload("OrderBOMs").
+		Find(&orders).
 		Error; err != nil {
 		return err
 	}
-
-	var extendOrderReserving []models.ExtendOrderReserving
-	for _, v := range *plans {
-		requiredQty := v.Quantity
-
-		var orderExtendBOM models.ExtendOrderBOM
-		for _, oeb := range orderExtendBOMs {
-			if oeb.ID == v.OrderBOMID {
-				orderExtendBOM = oeb
-				break
-			}
-		}
-		if orderExtendBOM.ID == 0 {
-			return fmt.Errorf("ExtendOrderBOM with ID %d not found", v.OrderBOMID)
-		}
-
-		var inventoryMaterials []models.InventoryMaterial
-		if err := DB.
-			Preload("Material").
-			Where("material_id = ?", orderExtendBOM.MaterialID).
-			Where("inventory_id IN ?", *plans).
-			Where("is_out_of_stock = ?", false).
-			Find(&inventoryMaterials).
-			Error; err != nil {
-			return err
-		}
-
-		if len(inventoryMaterials) == 0 {
-			return fmt.Errorf("InventoryMaterial with MaterialID %d not found - InventoryID: %d", orderExtendBOM.MaterialID, inventories)
-		}
-
-		var sumReservedQty int64
-		for _, invMat := range inventoryMaterials {
-			var available int64
-			if requiredQty <= 0 {
-				break
+	for _, order := range orders {
+		isCompletelyWithdraw := true
+		isFullfilled := true
+		for _, orderBOM := range *order.OrderBOMs {
+			if !orderBOM.IsCompletelyWithdraw {
+				isCompletelyWithdraw = false
 			}
 
-			if invMat.AvailableQty >= requiredQty {
-				available = requiredQty
+			if !orderBOM.IsFullFilled {
+				isFullfilled = false
+			}
+		}
+
+		if isCompletelyWithdraw {
+			order.Status = models.OrderStatus_Done
+			order.PlanStatus = models.OrderPlanStatus_Complete
+		} else {
+			if order.Status == models.OrderStatus_Idle {
+				order.Status = models.OrderStatus_Pending
+			}
+			if isFullfilled {
+				order.PlanStatus = models.OrderPlanStatus_Staged
 			} else {
-				available = invMat.AvailableQty
+				order.PlanStatus = models.OrderPlanStatus_Partial
 			}
-
-			// create OrderReserving
-			odrs := models.ExtendOrderReserving{
-				ExtendOrderID:       orderExtendBOM.ExtendOrderID,
-				ExtendOrderBOMID:    orderExtendBOM.ID,
-				ReceiptID:           invMat.ReceiptID,
-				InventoryMaterialID: invMat.ID,
-				Quantity:            available,
-				Status:              models.OrderReservingStatus_Reserved,
-			}
-			if err := DB.Create(&odrs).Error; err != nil {
-				return err
-			}
-			extendOrderReserving = append(extendOrderReserving, odrs)
-
-			// create inventory material transaction
-			transaction := models.InventoryMaterialTransaction{
-				InventoryMaterialID:      invMat.ID,
-				Quantity:                 available,
-				InventoryType:            models.InventoryType_RESERVE,
-				InventoryTypeDescription: models.InventoryTypeDescription_ORDER,
-				ExistingQuantity:         invMat.Quantity,
-				ExistingReserve:          invMat.Reserve,
-				UpdatedQuantity:          invMat.Quantity,
-				UpdatedReserve:           invMat.Reserve + available,
-				ExtendOrderID:            &orderExtendBOM.ExtendOrderID,
-			}
-			if err := DB.Create(&transaction).Error; err != nil {
-				return err
-			}
-
-			// update inventory material
-			invMat.AvailableQty -= available
-			invMat.Reserve += available
-
-			// update inventory material is out of stock
-			if invMat.AvailableQty == 0 {
-				invMat.IsOutOfStock = true
-			}
-			if err := DB.Save(&invMat).Error; err != nil {
-				return err
-			}
-
-			sumReservedQty += available
-			requiredQty -= available
-
-			// sum material
-			if e := rc.SumMaterial(DB, "CreatePlanner", orderExtendBOM.MaterialID, invMat.InventoryID); e != nil {
-				return e
-			}
-
 		}
-		// update isFullfilled
-		orderExtendBOM.ReservedQty += sumReservedQty
-		sumAllQuantity := orderExtendBOM.ReservedQty + orderExtendBOM.WithdrawedQty
-		if sumAllQuantity == orderExtendBOM.Quantity {
-			orderExtendBOM.IsFullFilled = true
-		}
-		if err := DB.Save(&orderExtendBOM).Error; err != nil {
+		if err := TX.Save(&order).Error; err != nil {
 			return err
 		}
 	}
+
+	var extendOrders []models.ExtendOrder
+	if err := TX.
+		Where("id IN ?", extendOrderIDs).
+		Preload("ExtendOrderBOMs").
+		Find(&extendOrders).
+		Error; err != nil {
+		return err
+	}
+	for _, order := range extendOrders {
+		isCompletelyWithdraw := true
+		isFullfilled := true
+		for _, orderBOM := range *order.ExtendOrderBOMs {
+			if !orderBOM.IsCompletelyWithdraw {
+				isCompletelyWithdraw = false
+			}
+
+			if !orderBOM.IsFullFilled {
+				isFullfilled = false
+			}
+		}
+
+		if isCompletelyWithdraw {
+			order.Status = models.OrderStatus_Done
+			order.Status = models.OrderPlanStatus_Complete
+		} else {
+			if order.Status == models.OrderStatus_Idle {
+				order.Status = models.OrderStatus_Pending
+			}
+			if isFullfilled {
+				order.Status = models.OrderPlanStatus_Staged
+			} else {
+				order.Status = models.OrderPlanStatus_Partial
+			}
+		}
+		if err := TX.Save(&order).Error; err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

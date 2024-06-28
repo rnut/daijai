@@ -1,9 +1,14 @@
 package models
 
 type PlanModel struct {
-	OrderBOMID uint
-	Quantity   int64
+	Type string // PlanType_Order, PlanType_ExtendOrder
+	ID   uint
 }
+
+const (
+	PlanType_Order       = "order"
+	PlanType_ExtendOrder = "extend"
+)
 
 // type SumMaterialInventory struct {
 // 	gorm.Model

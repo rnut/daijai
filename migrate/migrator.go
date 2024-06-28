@@ -52,9 +52,9 @@ func main() {
 		&models.Adjustment{},
 		&models.TransferMaterial{},
 
-		&models.ExtendOrderReserving{},
 		&models.ExtendOrderBOM{},
 		&models.ExtendOrder{},
+		&models.ExtendOrderReserving{},
 	}
 	for _, table := range tables {
 		db.Migrator().DropTable(table)
