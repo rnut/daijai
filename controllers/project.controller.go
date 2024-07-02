@@ -70,6 +70,67 @@ func (pc *ProjectController) GetProject(c *gin.Context) {
 	c.JSON(http.StatusOK, project)
 }
 
+// GetProjectDetailBySlug retrieves a Project by Slug.
+func (pc *ProjectController) GetProjectDetailBySlug(c *gin.Context) {
+	slug := c.Param("slug")
+
+	var response struct {
+		Project                       models.Project                        `json:"project"`
+		Orders                        []models.Order                        `json:"orders"`
+		ExtendOrders                  []models.ExtendOrder                  `json:"extendOrders"`
+		InventoryMaterialTransactions []models.InventoryMaterialTransaction `json:"transactions"`
+	}
+	if err := pc.
+		DB.
+		Where("slug = ?", slug).
+		First(&response.Project).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})
+		return
+	}
+
+	if err := pc.
+		DB.
+		Preload("Drawing").
+		Preload("CreatedBy").
+		Where("project_id = ?", response.Project.ID).
+		Find(&response.Orders).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Orders"})
+		return
+	}
+
+	if err := pc.
+		DB.
+		Preload("CreatedBy").
+		Where("project_id = ?", response.Project.ID).
+		Find(&response.ExtendOrders).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Extend Orders"})
+		return
+	}
+
+	var orderIDs []int64
+	var extendOrderIDs []int64
+
+	for _, order := range response.Orders {
+		orderIDs = append(orderIDs, int64(order.ID))
+	}
+
+	for _, extendOrder := range response.ExtendOrders {
+		extendOrderIDs = append(extendOrderIDs, int64(extendOrder.ID))
+	}
+
+	if err := pc.
+		DB.
+		Preload("InventoryMaterial.Material").
+		Where("order_id IN (?)", orderIDs).
+		Or("extend_order_id IN (?)", extendOrderIDs).
+		Find(&response.InventoryMaterialTransactions).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Inventory Material Transactions"})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 // UpdateProject updates a Project by ID.
 func (pc *ProjectController) UpdateProject(c *gin.Context) {
 	id := c.Param("id")

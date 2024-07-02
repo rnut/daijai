@@ -168,6 +168,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		projects.POST("", ctrl.CreateProject)
 		projects.GET("", ctrl.GetAllProjects)
 		projects.GET("/:id", ctrl.GetProject)
+		projects.GET("/detail/:slug", ctrl.GetProjectDetailBySlug)
 		projects.PUT("/:id", ctrl.UpdateProject)
 		projects.DELETE("/:id", ctrl.DeleteProject)
 	}

@@ -10,7 +10,7 @@ type Order struct {
 	DrawingID        uint
 	Drawing          Drawing
 	ProjectID        uint
-	Project          Project
+	Project          *Project
 	CreatedByID      uint   `gorm:"not null"`
 	CreatedBy        Member `gorm:"foreignkey:CreatedByID"`
 	OrderBOMs        *[]OrderBOM
