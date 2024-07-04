@@ -66,6 +66,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		inventories.PUT("/:id", inventoryController.UpdateInventory)
 		inventories.DELETE("/:id", inventoryController.DeleteInventory)
 		inventories.POST("/transfer", inventoryController.TransferMaterial)
+		inventories.POST("/transfer/calculateCost", inventoryController.CalculateCostOfTransferMaterial)
 		// inventories.GET("/:id/transactions/:material_id", inventoryController.GetInventoryTransaction)
 		// inventories.GET("/transactions", inventoryController.GetAllInventoryTransactions)
 	}
