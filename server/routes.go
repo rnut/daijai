@@ -236,11 +236,5 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		planner.GET("/materials", plannerCtrl.GetMaterialSumByInventory)
 		planner.POST("", plannerCtrl.CreatePlanner)
 	}
-
-	orderExtendsCtrl := controllers.NewExtendOrdererController(db)
-	orderExtends := router.Group("extenders")
-	{
-		orderExtends.GET("/new/info", orderExtendsCtrl.GetNewInfo)
-	}
 	return router
 }
