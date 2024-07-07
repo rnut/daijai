@@ -3,7 +3,6 @@ package controllers
 import (
 	"daijai/models"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -78,32 +77,47 @@ func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Conte
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	var request struct {
-		Slug              string                    `json:"Slug"`
-		Notes             string                    `json:"Notes"`
-		PurchaseMaterials []models.PurchaseMaterial `json:"PurchaseMaterials"`
-		PORefs            []models.PORef            `json:"PORefs"`
+
+	var req struct {
+		PORefs []string `json:"PORefs"`
+		PR     struct {
+			Slug              string                    `json:"Slug"`
+			Notes             string                    `json:"Notes"`
+			PurchaseMaterials []models.PurchaseMaterial `json:"PurchaseMaterials"`
+		} `json:"PR"`
 	}
-	if err := c.ShouldBindJSON(&request); err != nil {
+
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Println("request: ", request.PORefs)
 
 	if err := prc.DB.Transaction(func(tx *gorm.DB) error {
 		// create Purchase
 		purchase := models.Purchase{
-			Slug:        request.Slug,
-			Notes:       request.Notes,
+			Slug:        req.PR.Slug,
+			Notes:       req.PR.Notes,
 			CreatedByID: member.ID,
 		}
-		purchase.PORefs = request.PORefs
+
+		// create PORefs
+		for _, v := range req.PORefs {
+			poRef := models.PORef{
+				Slug: v,
+			}
+			// create PORef if not exist
+			if err := tx.FirstOrCreate(&poRef, "slug = ?", v).Error; err != nil {
+				return err
+			}
+			purchase.PORefs = append(purchase.PORefs, poRef)
+		}
+
 		if err := tx.Create(&purchase).Error; err != nil {
 			return err
 		}
 
 		// create purchaseMaterials
-		for _, v := range request.PurchaseMaterials {
+		for _, v := range req.PR.PurchaseMaterials {
 			prm := models.PurchaseMaterial{
 				PurchaseID: purchase.ID,
 				MaterialID: v.MaterialID,
@@ -131,16 +145,14 @@ func (prc *PurchaseRequisitionController) CreatePurchaseRequisition(c *gin.Conte
 			Topic:     models.NotificationTopic_ADMIN,
 		}
 		if err := tx.Create(&notif).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return err
 		}
 
 		return nil
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Order"})
-		log.Println(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to create Order", "error": err.Error()})
+		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"message": "PurchaseRequisition created successfully"})
 }
 
