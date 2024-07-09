@@ -484,3 +484,219 @@ func (rc *PlannerController) updateOrderStatus(orderIDs []uint, extendOrderIDs [
 
 	return nil
 }
+
+func (rc *PlannerController) InquiryPlan(c *gin.Context) {
+	var req struct {
+		Plans        []models.PlanModel `json:"plans"`
+		InventoryIDs []int64            `json:"inventoryIDs"`
+		MaterialIDs  []int64            `json:"materialIDs"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var orderIds []uint
+	var extendOrderIds []uint
+
+	for _, v := range req.Plans {
+		if v.Type == models.PlanType_Order {
+			orderIds = append(orderIds, v.ID)
+		} else if v.Type == models.PlanType_ExtendOrder {
+			extendOrderIds = append(extendOrderIds, v.ID)
+		}
+	}
+
+	var orders []models.Order
+	if err := rc.DB.
+		Preload("OrderBOMs.BOM.Material").
+		Where("id IN ?", orderIds).
+		Find(&orders).
+		Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch orders"})
+		return
+	}
+
+	orderMaps := make(map[uint]models.Order)
+	for _, v := range orders {
+		orderMaps[v.ID] = v
+	}
+
+	var extendOrders []models.ExtendOrder
+	if err := rc.DB.
+		Preload("ExtendOrderBOMs.Material").
+		Where("id IN ?", extendOrderIds).
+		Find(&extendOrders).
+		Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to fetch extend orders"})
+		return
+	}
+
+	extendOrderMaps := make(map[uint]models.ExtendOrder)
+	for _, v := range extendOrders {
+		extendOrderMaps[v.ID] = v
+	}
+
+	var inventoryMaterials []models.InventoryMaterial
+	if err := rc.DB.
+		Preload("Material").
+		Where("material_id IN (?)", req.MaterialIDs).
+		Where("inventory_id IN ?", req.InventoryIDs).
+		Where("is_out_of_stock = ?", false).
+		Find(&inventoryMaterials).
+		Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to fetch inventory materials"})
+	}
+
+	var planCosts []models.PlanCost
+	for _, v := range req.Plans {
+		switch v.Type {
+		case models.PlanType_Order:
+			order := orderMaps[v.ID]
+			boms := order.OrderBOMs
+			for _, bom := range *boms {
+				if bom.IsFullFilled || bom.IsCompletelyWithdraw || bom.BOM.Material == nil {
+					continue
+				} else {
+					var planCost models.PlanCost
+					planCost.Material = *bom.BOM.Material
+					requiredQty := bom.TargetQty - (bom.ReservedQty + bom.WithdrawedQty)
+					if requiredQty <= 0 {
+						continue
+					}
+
+					for index, invMat := range inventoryMaterials {
+						if requiredQty <= 0 {
+							break
+						}
+
+						if invMat.MaterialID != bom.BOM.MaterialID {
+							continue
+						}
+
+						available := invMat.AvailableQty
+						var usingQty int64
+						if available >= requiredQty {
+							usingQty = requiredQty
+						} else {
+							usingQty = invMat.AvailableQty
+						}
+
+						if usingQty <= 0 {
+							continue
+						}
+
+						// update requiredQty
+						requiredQty -= usingQty
+
+						// update isFullfilled
+						bom.ReservedQty += usingQty
+						sumAllQuantity := bom.ReservedQty + bom.WithdrawedQty
+						bom.IsFullFilled = sumAllQuantity == bom.TargetQty
+
+						// update inventory material
+						invMat.AvailableQty -= usingQty
+						invMat.Reserve += usingQty
+						invMat.IsOutOfStock = invMat.AvailableQty == 0
+
+						// update inventory material reference
+						inventoryMaterials[index].AvailableQty = invMat.AvailableQty
+						inventoryMaterials[index].Reserve = invMat.Reserve
+						inventoryMaterials[index].IsOutOfStock = invMat.IsOutOfStock
+
+						// append planCost.totalCost
+						planCost.Quantity += usingQty
+						planCost.TotalCost += usingQty * invMat.Price
+						planCosts = append(planCosts, planCost)
+					}
+				}
+			}
+		case models.PlanType_ExtendOrder:
+			extendOrder := extendOrderMaps[v.ID]
+			boms := extendOrder.ExtendOrderBOMs
+			for _, bom := range *boms {
+				if bom.IsFullFilled || bom.IsCompletelyWithdraw || bom.Material == nil {
+					continue
+				} else {
+					var planCost models.PlanCost
+					planCost.Material = *bom.Material
+
+					requiredQty := bom.Quantity - (bom.ReservedQty + bom.WithdrawedQty)
+					if requiredQty <= 0 {
+						continue
+					}
+					for index, invMat := range inventoryMaterials {
+						if requiredQty <= 0 {
+							break
+						}
+
+						if invMat.MaterialID != bom.MaterialID {
+							continue
+						}
+
+						available := invMat.AvailableQty
+						var usingQty int64
+						if available >= requiredQty {
+							usingQty = requiredQty
+						} else {
+							usingQty = invMat.AvailableQty
+						}
+
+						if usingQty <= 0 {
+							continue
+						}
+
+						// update requiredQty
+						requiredQty -= usingQty
+
+						// update isFullfilled
+						bom.ReservedQty += usingQty
+						sumAllQuantity := bom.ReservedQty + bom.WithdrawedQty
+						bom.IsFullFilled = sumAllQuantity == bom.Quantity
+
+						// update inventory material
+						invMat.AvailableQty -= usingQty
+						invMat.Reserve += usingQty
+						invMat.IsOutOfStock = invMat.AvailableQty == 0
+
+						// update inventory material reference
+						inventoryMaterials[index].AvailableQty = invMat.AvailableQty
+						inventoryMaterials[index].Reserve = invMat.Reserve
+						inventoryMaterials[index].IsOutOfStock = invMat.IsOutOfStock
+
+						// append to planCosts
+						planCost.Quantity += usingQty
+						planCost.TotalCost += usingQty * invMat.Price
+						planCosts = append(planCosts, planCost)
+					}
+				}
+
+			}
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid PlanType"})
+			return
+		}
+	}
+
+	// group planCosts by materialID
+	var planCostsMap = make(map[uint]models.PlanCost)
+	for _, v := range planCosts {
+		if _, ok := planCostsMap[v.Material.ID]; ok {
+			planCostsMap[v.Material.ID] = models.PlanCost{
+				Material:  v.Material,
+				Quantity:  planCostsMap[v.Material.ID].Quantity + v.Quantity,
+				TotalCost: (planCostsMap[v.Material.ID].TotalCost + v.TotalCost) / 100,
+			}
+		} else {
+			planCostsMap[v.Material.ID] = v
+		}
+	}
+
+	// convert map to slice
+	var cPlanCosts []models.PlanCost
+	for _, v := range planCostsMap {
+		cPlanCosts = append(cPlanCosts, v)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"planCosts": cPlanCosts, "planners": req.Plans})
+}

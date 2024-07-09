@@ -16,6 +16,7 @@ type InventoryMaterialTransaction struct {
 	ReceiptID                *uint
 	Receipt                  *Receipt `gorm:"foreignKey:ReceiptID;references:ID"`
 	ExtendOrderID            *uint
+	ExtendOrder              *ExtendOrder `gorm:"foreignKey:ExtendOrderID;references:ID"`
 	OrderID                  *uint
 	Order                    *Order `gorm:"foreignKey:OrderID;references:ID"`
 	WithdrawalID             *uint

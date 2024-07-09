@@ -165,6 +165,7 @@ func (odc *OrderController) GetNewOrderInfo(c *gin.Context) {
 	if err := odc.
 		DB.
 		Where("is_fg = ?", isFG).
+		Preload("BOMs.Material.Sums").
 		Find(&drawings).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Drawings"})
 		return

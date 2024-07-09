@@ -10,6 +10,12 @@ const (
 	PlanType_ExtendOrder = "extend"
 )
 
+type PlanCost struct {
+	Material  Material
+	Quantity  int64
+	TotalCost int64
+}
+
 // type SumMaterialInventory struct {
 // 	gorm.Model
 // 	MaterialID  uint

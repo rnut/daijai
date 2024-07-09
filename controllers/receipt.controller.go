@@ -480,6 +480,7 @@ func (rc *ReceiptController) GetReceiptBySlug(c *gin.Context) {
 		Preload("Material").
 		Preload("Inventory").
 		Preload("Transactions.Order.Drawing").
+		Preload("Transactions.ExtendOrder").
 		Preload("Transactions.Withdrawal.CreatedBy").
 		Find(&inventoryMaterials, "receipt_id = ?", receipt.ID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
