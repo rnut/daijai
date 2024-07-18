@@ -606,7 +606,7 @@ func (rc *PlannerController) InquiryPlan(c *gin.Context) {
 
 						// append planCost.totalCost
 						planCost.Quantity += usingQty
-						planCost.TotalCost += usingQty * invMat.Price
+						planCost.TotalCost += ((usingQty / 100) * (invMat.Price / 100) * 100)
 						planCosts = append(planCosts, planCost)
 					}
 				}
@@ -666,7 +666,7 @@ func (rc *PlannerController) InquiryPlan(c *gin.Context) {
 
 						// append to planCosts
 						planCost.Quantity += usingQty
-						planCost.TotalCost += usingQty * invMat.Price
+						planCost.TotalCost += ((usingQty / 100) * (invMat.Price / 100) * 100)
 						planCosts = append(planCosts, planCost)
 					}
 				}
