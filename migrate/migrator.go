@@ -51,16 +51,19 @@ func main() {
 		&models.Notification{},
 		&models.Adjustment{},
 		&models.TransferMaterial{},
+		&models.ProjectStore{},
 
+		// extend tables
 		&models.ExtendOrderBOM{},
 		&models.ExtendOrder{},
 		&models.ExtendOrderReserving{},
 	}
 	for _, table := range tables {
-		db.Migrator().DropTable(table)
+		// db.Migrator().DropTable(table)
 		db.AutoMigrate(&table)
 	}
-	setup(db)
+	// setup(db)
+	initSlugger(db)
 }
 
 func setup(db *gorm.DB) {
@@ -80,6 +83,7 @@ func initSlugger(db *gorm.DB) {
 		&models.Purchase{},
 		&models.Receipt{},
 		&models.ExtendOrder{},
+		&models.Drawing{},
 	}
 	for _, m := range slugables {
 		slug := m.GenerateSlug()

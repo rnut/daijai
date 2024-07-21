@@ -26,6 +26,7 @@ func NewDrawingController(db *gorm.DB) *DrawingController {
 func (dc *DrawingController) GetNewDrawingInfo(c *gin.Context) {
 	isFg := c.Param("type") == models.MaterialType_FinishedGood
 	var response struct {
+		Slug       string
 		Categories []models.Category
 	}
 
@@ -37,6 +38,13 @@ func (dc *DrawingController) GetNewDrawingInfo(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Categories"})
 		return
 	}
+
+	// get slug
+	if err := dc.RequestSlug(&response.Slug, dc.DB, "drawings"); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Slug"})
+		return
+	}
+
 	response.Categories = categories
 	c.JSON(http.StatusOK, response)
 }

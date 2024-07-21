@@ -66,3 +66,12 @@ func (ExtendOrder) GenerateSlug() Slugger {
 		Value:     0,
 	}
 }
+
+func (Drawing) GenerateSlug() Slugger {
+	return Slugger{
+		TableName: "drawings",
+		Prefix:    "DWG-",
+		Pad:       7,
+		Value:     0,
+	}
+}
