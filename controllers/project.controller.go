@@ -83,6 +83,7 @@ func (pc *ProjectController) GetProjectDetailBySlug(c *gin.Context) {
 	if err := pc.
 		DB.
 		Where("slug = ?", slug).
+		Preload("ProjectStores").
 		First(&response.Project).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})
 		return

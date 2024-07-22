@@ -57,7 +57,7 @@ func (p *ProjectStoreController) GetProjectStoreByID(c *gin.Context) {
 
 // update project store
 func (p *ProjectStoreController) UpdateProjectStore(c *gin.Context) {
-	projectStore := models.ProjectStore{}
+	var projectStore models.ProjectStore
 	id := c.Param("id")
 	result := p.DB.First(&projectStore, id)
 	if result.Error != nil {
@@ -68,6 +68,7 @@ func (p *ProjectStoreController) UpdateProjectStore(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
 	result = p.DB.Save(&projectStore)
 	if result.Error != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": result.Error.Error()})
