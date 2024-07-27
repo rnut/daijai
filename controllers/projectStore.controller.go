@@ -24,7 +24,17 @@ func (p *ProjectStoreController) CreateProjectStore(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// get Project
+	project := models.Project{}
+	err := p.DB.First(&project, projectStore.ProjectID)
+	if err.Error != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error.Error()})
+		return
+	}
+
 	result := p.DB.Create(&projectStore)
+	projectStore.Project = &project
 	if result.Error != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": result.Error.Error()})
 		return
@@ -35,7 +45,10 @@ func (p *ProjectStoreController) CreateProjectStore(c *gin.Context) {
 // get all project stores
 func (p *ProjectStoreController) GetProjectStores(c *gin.Context) {
 	projectStores := []models.ProjectStore{}
-	result := p.DB.Find(&projectStores)
+	result := p.
+		DB.
+		Preload("Project").
+		Find(&projectStores)
 	if result.Error != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": result.Error.Error()})
 		return
