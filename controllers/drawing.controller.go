@@ -165,6 +165,7 @@ func (dc *DrawingController) UpdateDrawing(c *gin.Context) {
 
 		// CREATE NEW BOMs
 		for _, v := range req.BOMs {
+			v.DrawingID = drw.ID
 			if err := tx.Save(&v).Error; err != nil {
 				return err
 			}
@@ -180,39 +181,6 @@ func (dc *DrawingController) UpdateDrawing(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, drw)
 }
-
-// UpdateDrawing updates a specific drawing by ID.
-// func (dc *DrawingController) UpdateDrawing(c *gin.Context) {
-// 	drawingID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-// 	if err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid drawing ID"})
-// 		return
-// 	}
-
-// 	var existingDrawing models.Drawing
-// 	if err := dc.DB.First(&existingDrawing, drawingID).Error; err != nil {
-// 		c.JSON(http.StatusNotFound, gin.H{"error": "Drawing not found"})
-// 		return
-// 	}
-
-// 	var updatedDrawing models.Drawing
-// 	if err := c.ShouldBindJSON(&updatedDrawing); err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	// Update only the fields you want to allow being updated.
-// 	existingDrawing.Slug = updatedDrawing.Slug
-// 	existingDrawing.PartNumber = updatedDrawing.PartNumber
-// 	existingDrawing.ProducedQuantity = updatedDrawing.ProducedQuantity
-
-// 	if err := dc.DB.Save(&existingDrawing).Error; err != nil {
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update drawing"})
-// 		return
-// 	}
-
-// 	c.JSON(http.StatusOK, existingDrawing)
-// }
 
 // DeleteDrawing deletes a specific drawing by ID.
 func (dc *DrawingController) DeleteDrawing(c *gin.Context) {

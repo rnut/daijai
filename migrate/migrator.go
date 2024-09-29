@@ -63,7 +63,7 @@ func main() {
 		db.AutoMigrate(&table)
 	}
 	// setup(db)
-	initSlugger(db)
+	// initSlugger(db)
 }
 
 func setup(db *gorm.DB) {
