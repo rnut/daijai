@@ -219,6 +219,10 @@ func (rc *PlannerController) createPlanOrder(bom *models.OrderBOM, inventoryMate
 	sumUsing := int64(0)
 
 	for index, invMat := range *inventoryMaterials {
+		if invMat.MaterialID != bom.MaterialID {
+			log.Println("invMat.MaterialID != bom.BOM.MaterialID")
+			continue
+		}
 		log.Println("-------before----------")
 		log.Println("invMat: ", invMat.ID)
 		log.Println("requiredQty: ", requiredQty)
@@ -555,11 +559,11 @@ func (rc *PlannerController) InquiryPlan(c *gin.Context) {
 			order := orderMaps[v.ID]
 			boms := order.OrderBOMs
 			for _, bom := range *boms {
-				if bom.IsFullFilled || bom.IsCompletelyWithdraw || bom.BOM.Material == nil {
+				if bom.IsFullFilled || bom.IsCompletelyWithdraw || bom.Material == nil {
 					continue
 				} else {
 					var planCost models.PlanCost
-					planCost.Material = *bom.BOM.Material
+					planCost.Material = *bom.Material
 					requiredQty := bom.TargetQty - (bom.ReservedQty + bom.WithdrawedQty)
 					if requiredQty <= 0 {
 						continue
@@ -570,7 +574,7 @@ func (rc *PlannerController) InquiryPlan(c *gin.Context) {
 							break
 						}
 
-						if invMat.MaterialID != bom.BOM.MaterialID {
+						if invMat.MaterialID != bom.MaterialID {
 							continue
 						}
 

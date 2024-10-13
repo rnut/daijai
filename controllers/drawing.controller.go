@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"daijai/models"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -122,6 +123,24 @@ func (dc *DrawingController) GetDrawingByID(c *gin.Context) {
 }
 
 func (dc *DrawingController) UpdateDrawing(c *gin.Context) {
+	var uid uint
+	if err := dc.GetUserID(c, &uid); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var member models.Member
+	if err := dc.getUserDataByUserID(dc.DB, uid, &member); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var req models.Drawing
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	drawingID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid drawing ID"})
@@ -134,24 +153,6 @@ func (dc *DrawingController) UpdateDrawing(c *gin.Context) {
 	}
 
 	// UPDATE Drawing fields
-	var req models.Drawing
-	if err := c.ShouldBind(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	var uid uint
-	if err := dc.GetUserID(c, &uid); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	var member models.Member
-	if err := dc.getUserDataByUserID(dc.DB, uid, &member); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// UPDATE Drawing fields
 	drw.ImagePath = req.ImagePath
 	drw.Slug = req.Slug
 	drw.PartNumber = req.PartNumber
@@ -159,24 +160,30 @@ func (dc *DrawingController) UpdateDrawing(c *gin.Context) {
 
 	if err := dc.DB.Transaction(func(tx *gorm.DB) error {
 		// DELETE EXISTING BOMs
-		if err := tx.Where("drawing_id = ?", drw.ID).Delete(&models.BOM{}).Error; err != nil {
-			return err
-		}
-
-		// CREATE NEW BOMs
-		for _, v := range req.BOMs {
-			v.DrawingID = drw.ID
-			if err := tx.Save(&v).Error; err != nil {
+		for _, bom := range drw.BOMs {
+			if err := tx.Delete(&bom).Error; err != nil {
 				return err
 			}
 		}
-		drw.BOMs = req.BOMs
+
+		drw.BOMs = []models.BOM{}
+
+		for _, v := range req.BOMs {
+			bom := models.BOM{
+				Quantity:   v.Quantity,
+				MaterialID: v.MaterialID,
+				DrawingID:  drw.ID,
+			}
+			drw.BOMs = append(drw.BOMs, bom)
+		}
+
 		if err := tx.Save(&drw).Error; err != nil {
 			return err
 		}
 		return nil
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create drawing"})
+		log.Print(err.Error())
+		dc.LogErrorAndSendBadRequest(c, "Failed to update drawing")
 		return
 	}
 	c.JSON(http.StatusCreated, drw)

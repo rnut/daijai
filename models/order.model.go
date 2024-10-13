@@ -20,20 +20,6 @@ type Order struct {
 	IsFG             bool `gorm:"default:false"`
 }
 
-type OrderBOM struct {
-	gorm.Model
-	OrderID              uint
-	Order                Order
-	BOMID                uint
-	BOM                  *BOM
-	TargetQty            int64
-	ReservedQty          int64
-	WithdrawedQty        int64
-	AdjustQty            int64
-	IsFullFilled         bool // จองครบหรือไม่
-	IsCompletelyWithdraw bool // เบิกครบหรือไม่
-}
-
 const (
 	OrderStatus_Idle       = "idle"
 	OrderStatus_Pending    = "pending"
@@ -46,7 +32,3 @@ const (
 	OrderPlanStatus_Staged   = "staged"
 	OrderPlanStatus_Complete = "complete"
 )
-
-func (OrderBOM) TableName() string {
-	return "order_boms"
-}

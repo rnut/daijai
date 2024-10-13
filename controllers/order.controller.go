@@ -62,9 +62,9 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 	order.ProjectID = uint(request.ProjectID)
 	order.Notes = request.Notes
 	order.IsFG = request.IsFG
+	order.CreatedByID = member.ID
 
 	if err := odc.DB.Transaction(func(tx *gorm.DB) error {
-		order.CreatedByID = member.ID
 		if err := tx.Create(&order).Error; err != nil {
 			return err
 		}
@@ -75,7 +75,8 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 
 			var orderBom models.OrderBOM
 			orderBom.OrderID = order.ID
-			orderBom.BOMID = bom.ID
+			orderBom.MaterialID = bom.MaterialID
+			orderBom.DrawingID = bom.DrawingID
 			orderBom.TargetQty = target
 			orderBom.IsCompletelyWithdraw = false
 			orderBom.WithdrawedQty = 0
@@ -135,7 +136,7 @@ func (odc *OrderController) GetOrderBySlug(c *gin.Context) {
 	slug := c.Param("slug")
 	if err := odc.
 		DB.
-		Preload("OrderBOMs.BOM.Material").
+		Preload("OrderBOMs.Material").
 		Preload("Drawing").
 		Preload("Project").
 		Preload("CreatedBy").
@@ -196,7 +197,7 @@ func (odc *OrderController) GetOrderInfo(c *gin.Context) {
 	var order models.Order
 	if err := odc.
 		DB.
-		Preload("OrderBOMs.BOM.Material").
+		Preload("OrderBOMs.Material").
 		Preload("OrderReservings.InventoryMaterial.Material").
 		Where("slug = ?", slug).
 		First(&order).Error; err != nil {
