@@ -4,20 +4,38 @@ import (
 	"daijai/config"
 	"daijai/models"
 	"encoding/csv"
+	"flag"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 
 	"gorm.io/gorm"
 )
 
+var (
+	cleanFlag bool
+	seedFlag  bool
+)
+
 func init() {
-	// config.ConnectDB()
+	config.ConnectDB()
+	c := flag.Bool("clean", false, "Drop all tables")
+	s := flag.Bool("seed", false, "Seed data")
+	flag.Parse()
+	cleanFlag = *c
+	seedFlag = *s
 }
 
+// create flags
+// -clean : drop all tables
+// -seed : seed data
+
 func main() {
-	config.ConnectDB()
 	db := config.DB
+	if dba, err := config.DB.DB(); err == nil {
+		defer dba.Close()
+	}
 	tables := []interface{}{
 		// relation tables
 		&models.InventoryMaterial{},
@@ -58,21 +76,35 @@ func main() {
 		&models.ExtendOrder{},
 		&models.ExtendOrderReserving{},
 	}
+	if cleanFlag {
+		log.Println("Dropping all tables...")
+		db.Migrator().DropTable()
+		for _, table := range tables {
+			db.Migrator().DropTable(table)
+		}
+		db.Migrator().DropTable(("building_areas"))
+		db.Migrator().DropTable(("building_pets"))
+		log.Println("All tables dropped")
+	}
+
+	log.Println("Migrating data...")
 	for _, table := range tables {
-		// db.Migrator().DropTable(table)
 		db.AutoMigrate(&table)
 	}
-	// setup(db)
-	// initSlugger(db)
-}
+	log.Println("Done! Migrating data ")
 
-func setup(db *gorm.DB) {
-	initUsers(db)
-	loadCategoriesFromCSV(db, "./migrate/categories.csv")
-	loadMaterialsFromCSV(db, "./migrate/materials.csv")
-	initInventory(db)
-	initProject(db)
-	initSlugger(db)
+	if seedFlag {
+		log.Println("Seeding data...")
+		initUsers(db)
+		initInventory(db)
+		initProject(db)
+		initSlugger(db)
+		loadCategoriesFromCSV(db, "./migrate/categories.csv")
+		loadMaterialsFromCSV(db, "./migrate/materials.csv")
+		loadDrawingsFromCSV(db, "./migrate/drawings.csv")
+		loadMateriailOfDrawing(db, "./migrate/boms.csv")
+		log.Println("Done! Seeding data")
+	}
 }
 
 func initSlugger(db *gorm.DB) {
@@ -243,6 +275,95 @@ func loadMaterialsFromCSV(db *gorm.DB, filePath string) error {
 		// Save the material to the database
 		if err := db.Create(&material).Error; err != nil {
 			return fmt.Errorf("failed to save material to database: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func loadDrawingsFromCSV(db *gorm.DB, filePath string) error {
+	// Open the CSV file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open CSV file: %w", err)
+	}
+	defer file.Close()
+
+	// Create a new CSV reader
+	reader := csv.NewReader(file)
+
+	// Read the CSV records
+	records, err := reader.ReadAll()
+	if err != nil {
+		return fmt.Errorf("failed to read CSV records: %w", err)
+	}
+
+	// Skip the first header row
+	records = records[1:]
+
+	// Process each record
+	for _, record := range records {
+		slug := record[0]
+		partNumber := record[1]
+		imagePath := record[2]
+		createdByID, _ := strconv.Atoi(record[3])
+		isFG, _ := strconv.ParseBool(record[4])
+
+		// Create a new drawing object
+		drawing := models.Drawing{
+			Slug:        slug,
+			ImagePath:   imagePath,
+			PartNumber:  partNumber,
+			CreatedByID: uint(createdByID),
+			IsFG:        isFG,
+		}
+
+		// Save the drawing to the database
+		if err := db.Create(&drawing).Error; err != nil {
+			return fmt.Errorf("failed to save drawing to database: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func loadMateriailOfDrawing(db *gorm.DB, filePath string) error {
+	// Open the CSV file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open CSV file: %w", err)
+	}
+	defer file.Close()
+
+	// Create a new CSV reader
+	reader := csv.NewReader(file)
+
+	// Read the CSV records
+	records, err := reader.ReadAll()
+	if err != nil {
+		return fmt.Errorf("failed to read CSV records: %w", err)
+	}
+
+	// Skip the first header row
+	records = records[1:]
+
+	// Process each record
+	for _, record := range records {
+		log.Println(record)
+		quantity, _ := strconv.Atoi(record[0])
+		drawingID, _ := strconv.Atoi(record[1])
+		materialID, _ := strconv.Atoi(record[2])
+
+		// Create a new material of drawing object
+		materialOfDrawing := models.BOM{
+			DrawingID:  uint(drawingID),
+			MaterialID: uint(materialID),
+			Quantity:   int64(quantity),
+		}
+
+		// Save the material of drawing to the database
+		if err := db.Create(&materialOfDrawing).Error; err != nil {
+			return fmt.Errorf("failed to save material of drawing to database: %w", err)
 		}
 	}
 
