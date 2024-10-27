@@ -3,6 +3,7 @@ package controllers
 import (
 	"daijai/models"
 	"daijai/token"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -131,4 +132,16 @@ func (bc *BaseController) CreateNotification(db *gorm.DB, notification *models.N
 func (bc *BaseController) LogErrorAndSendBadRequest(c *gin.Context, errorMessage string) {
 	log.Println(errorMessage)
 	c.JSON(http.StatusBadRequest, gin.H{"error": errorMessage})
+}
+
+type DebugController struct {
+}
+
+func (bc *DebugController) PrintJSON(c interface{}) {
+	jsonData, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println(string(jsonData))
+	}
 }

@@ -244,7 +244,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		planner.GET("/new/info", plannerCtrl.GetNewPlannerInfo)
 		planner.GET("/extend/orders", plannerCtrl.GetExtendOrders)
 		planner.GET("/materials", plannerCtrl.GetMaterialSumByInventory)
-		planner.POST("", plannerCtrl.CreatePlanner)
+		planner.POST("/confirm", plannerCtrl.CreatePlanner)
 		planner.POST("/inquiry", plannerCtrl.InquiryPlan)
 	}
 	return router

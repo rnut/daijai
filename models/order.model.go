@@ -21,14 +21,14 @@ type Order struct {
 }
 
 const (
-	OrderStatus_Idle       = "idle"
-	OrderStatus_Pending    = "pending"
-	OrderStatus_InProgress = "in-progress"
-	OrderStatus_Done       = "done"
+	OrderStatus_Idle       = "idle"        // สร้าง
+	OrderStatus_Pending    = "pending"     // จัดสรรแล้ว
+	OrderStatus_InProgress = "in-progress" // กำลังเบิก
+	OrderStatus_Done       = "done"        // จัดสรรและเบิกครบ
 )
 const (
 	OrderPlanStatus_None     = "none"
-	OrderPlanStatus_Partial  = "partial"
-	OrderPlanStatus_Staged   = "staged"
-	OrderPlanStatus_Complete = "complete"
+	OrderPlanStatus_Partial  = "partial"  // จัดสรรไปบางส่วน แต่ยังไม่ครบ
+	OrderPlanStatus_Staged   = "staged"   // จัดสรรครบแล้ว รอเบิก
+	OrderPlanStatus_Complete = "complete" // จัดสรรครบแล้ว และเบิกครบ
 )

@@ -1,19 +1,37 @@
 package models
 
-type PlanModel struct {
-	Type string // PlanType_Order, PlanType_ExtendOrder
-	ID   uint
-}
-
 const (
-	PlanType_Order       = "order"
-	PlanType_ExtendOrder = "extend"
+	Plan_Order       = "order"
+	Plan_ExtendOrder = "extend"
 )
 
-type PlanCost struct {
-	Material  Material
-	Quantity  int64
-	TotalCost int64
+type PlanOrder struct {
+	MaterialID uint
+	Material   Material
+	Capability int64
+	PlanBOMs   []PlanBOM
+}
+
+type PlanBOM struct {
+	OrderBOM      OrderBOM
+	NewReserveQty int64
+}
+
+type InquiryPlan struct {
+	InventoryIDs []int64            `json:"inventoryIDs"`
+	Orders       []InquiryPlanOrder `json:"orders"`
+}
+
+type InquiryPlanOrder struct {
+	ID   uint   `json:"id"`
+	Type string `json:"type"`
+}
+
+type PlanSumMaterial struct {
+	MaterialID   uint
+	Quantity     int64
+	AvailableQty int64
+	Reserve      int64
 }
 
 // type SumMaterialInventory struct {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -15,6 +16,7 @@ import (
 type PlannerController struct {
 	DB *gorm.DB
 	BaseController
+	DebugController
 }
 
 func NewPlannerController(db *gorm.DB) *PlannerController {
@@ -38,7 +40,7 @@ func (rc *PlannerController) GetNewPlannerInfo(c *gin.Context) {
 	incompletedStatus := []string{models.OrderStatus_Idle, models.OrderStatus_Pending, models.OrderStatus_InProgress}
 	incompletePlanedStatus := []string{models.OrderPlanStatus_None, models.OrderPlanStatus_Partial}
 	if err := rc.DB.
-		Preload("OrderBOMs.BOM.Material").
+		Preload("OrderBOMs.Material").
 		Where("status IN (?)", incompletedStatus).
 		Where("plan_status IN (?)", incompletePlanedStatus).
 		Find(&response.IncompleteOrders).Error; err != nil {
@@ -97,94 +99,191 @@ func (rc *PlannerController) GetMaterialSumByInventory(c *gin.Context) {
 
 // create new planner
 func (rc *PlannerController) CreatePlanner(c *gin.Context) {
-	var req struct {
-		Plans        []models.PlanModel `json:"plans"`
-		InventoryIDs []int64            `json:"inventoryIDs"`
-		MaterialIDs  []int64            `json:"materialIDs"`
-	}
+	var req models.InquiryPlan
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	var orderIds []uint
-	var extendOrderIds []uint
+	log.Println("=======CONFIRM Plan==========")
+	log.Println("req: ")
+	rc.PrintJSON(req)
 
-	for _, v := range req.Plans {
-		if v.Type == models.PlanType_Order {
-			orderIds = append(orderIds, v.ID)
-		} else if v.Type == models.PlanType_ExtendOrder {
-			extendOrderIds = append(extendOrderIds, v.ID)
-		}
+	var orderIDs []uint
+
+	for _, v := range req.Orders {
+		orderIDs = append(orderIDs, v.ID)
 	}
 
 	var orders []models.Order
-	if err := rc.DB.
-		Preload("OrderBOMs.BOM.Material").
-		Where("id IN ?", orderIds).
+	if err := rc.
+		DB.
+		Preload("OrderBOMs", func(db *gorm.DB) *gorm.DB {
+			return db.Order("id DESC")
+		}).
+		Preload("OrderBOMs.Material", func(db *gorm.DB) *gorm.DB {
+			return db.Order("materials.id DESC")
+		}).
+		Where("id IN ?", orderIDs).
 		Find(&orders).
 		Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch orders"})
 		return
 	}
 
-	orderMaps := make(map[uint]models.Order)
-	for _, v := range orders {
-		orderMaps[v.ID] = v
+	materialMaps := make(map[uint]models.PlanOrder)
+	for _, order := range orders {
+		for _, bom := range *order.OrderBOMs {
+			ord := order
+			bom.Order = &ord
+			if _, ok := materialMaps[bom.MaterialID]; ok {
+				planBom := models.PlanBOM{
+					OrderBOM: bom,
+				}
+				materialMaps[bom.MaterialID] = models.PlanOrder{
+					MaterialID: bom.MaterialID,
+					Material:   *bom.Material,
+					PlanBOMs:   append(materialMaps[bom.MaterialID].PlanBOMs, planBom),
+				}
+			} else {
+				planBom := models.PlanBOM{
+					OrderBOM: bom,
+				}
+				materialMaps[bom.MaterialID] = models.PlanOrder{
+					MaterialID: bom.MaterialID,
+					Material:   *bom.Material,
+					PlanBOMs:   []models.PlanBOM{planBom},
+				}
+			}
+		}
 	}
 
-	var extendOrders []models.ExtendOrder
-	if err := rc.DB.
-		Preload("ExtendOrderBOMs").
-		Where("id IN ?", extendOrderIds).
-		Find(&extendOrders).
-		Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch extend orders"})
-		return
+	planOrders := make([]models.PlanOrder, 0, len(materialMaps))
+	for _, v := range materialMaps {
+		planOrders = append(planOrders, v)
 	}
 
-	extendOrderMaps := make(map[uint]models.ExtendOrder)
-	for _, v := range extendOrders {
-		extendOrderMaps[v.ID] = v
+	// reorder planOrders by materialID
+	sort.Slice(planOrders, func(i, j int) bool {
+		return planOrders[i].MaterialID < planOrders[j].MaterialID
+	})
+
+	materialIDs := make([]uint, 0, len(materialMaps))
+	for k := range materialMaps {
+		materialIDs = append(materialIDs, k)
 	}
 
 	var inventoryMaterials []models.InventoryMaterial
 	if err := rc.DB.
 		Preload("Material").
-		Where("material_id IN (?)", req.MaterialIDs).
+		Where("material_id IN (?)", materialIDs).
 		Where("inventory_id IN ?", req.InventoryIDs).
 		Where("is_out_of_stock = ?", false).
 		Find(&inventoryMaterials).
 		Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch inventory materials"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to fetch inventory materials",
+		})
 	}
 
 	if err := rc.DB.Transaction(func(tx *gorm.DB) error {
-		for _, v := range req.Plans {
-			switch v.Type {
-			case models.PlanType_Order:
-				order := orderMaps[v.ID]
-				boms := order.OrderBOMs
-				for _, bom := range *boms {
-					if err := rc.createPlanOrder(&bom, &inventoryMaterials, tx); err != nil {
+		for i, v := range planOrders {
+			matID := v.MaterialID
+			boms := v.PlanBOMs
+			var totalUsing int64
+			for j, bom := range boms {
+				need := bom.OrderBOM.TargetQty - (bom.OrderBOM.ReservedQty + bom.OrderBOM.WithdrawedQty)
+				var using int64
+				log.Println("bom id: ", bom.OrderBOM.ID, " need: ", need, " reserved: ", bom.OrderBOM.ReservedQty, " withdrawed: ", bom.OrderBOM.WithdrawedQty)
+				if need <= 0 {
+					continue
+				} else {
+					for _, inv := range inventoryMaterials {
+						if inv.MaterialID == matID && inv.AvailableQty > 0 {
+							var tempExistingReserve int64
+							var tempUpdatedReserve int64
+
+							tempExistingReserve = inv.Reserve
+							if inv.AvailableQty >= need {
+								using = need
+							} else {
+								using = inv.AvailableQty
+							}
+							totalUsing += using
+							need -= using
+							boms[j].OrderBOM.ReservedQty += using
+
+							inv.AvailableQty -= using
+							inv.Reserve += using
+							inv.IsOutOfStock = inv.AvailableQty == 0
+							if err := tx.Save(&inv).Error; err != nil {
+								return err
+							}
+							tempUpdatedReserve = inv.Reserve
+							log.Println("update using: ", using)
+							log.Println("update need: ", need)
+							inventoryMaterials[i].AvailableQty = inv.AvailableQty
+							inventoryMaterials[i].Reserve = inv.Reserve
+							inventoryMaterials[i].IsOutOfStock = inv.IsOutOfStock
+
+							// create order reserving
+							orderReserving := models.OrderReserving{
+								OrderID:             bom.OrderBOM.OrderID,
+								OrderBOMID:          bom.OrderBOM.ID,
+								ReceiptID:           inv.ReceiptID,
+								InventoryMaterialID: inv.ID,
+								Quantity:            using,
+								Status:              models.OrderReservingStatus_Reserved,
+							}
+							if err := tx.Create(&orderReserving).Error; err != nil {
+								return err
+							}
+
+							// create inventory material transaction
+							transaction := models.InventoryMaterialTransaction{
+								InventoryMaterialID:      inv.ID,
+								Quantity:                 using,
+								InventoryType:            models.InventoryType_RESERVE,
+								InventoryTypeDescription: models.InventoryTypeDescription_ORDER,
+								ExistingQuantity:         inv.Quantity,
+								ExistingReserve:          tempExistingReserve,
+								UpdatedQuantity:          inv.Quantity,
+								UpdatedReserve:           tempUpdatedReserve,
+								OrderID:                  &bom.OrderBOM.OrderID,
+							}
+							if err := tx.Create(&transaction).Error; err != nil {
+								return err
+							}
+
+							if need <= 0 {
+								log.Println("need = 0 -> break")
+								break
+							}
+						}
+					}
+
+					// update bom quantity
+					bom.OrderBOM.ReservedQty += totalUsing
+					sumPlannedQty := bom.OrderBOM.ReservedQty + bom.OrderBOM.WithdrawedQty
+					if sumPlannedQty == bom.OrderBOM.TargetQty {
+						bom.OrderBOM.IsFullFilled = true
+					}
+					log.Println("bom id: ", bom.OrderBOM.ID, "    total using: ", using, "    total reserved: ", bom.OrderBOM.ReservedQty, "    total withdrawed: ", bom.OrderBOM.WithdrawedQty, " fullFIlled: ", bom.OrderBOM.IsFullFilled)
+					// save bom
+					if err := tx.Save(&bom.OrderBOM).Error; err != nil {
 						return err
 					}
+					boms[j] = bom
+					log.Println("boms[j]: ")
+					rc.PrintJSON(boms[j])
 				}
-			case models.PlanType_ExtendOrder:
-				extendOrder := extendOrderMaps[v.ID]
-				boms := extendOrder.ExtendOrderBOMs
-				for _, bom := range *boms {
-					if err := rc.createPlanExtendOrder(&bom, &inventoryMaterials, tx); err != nil {
-						return err
-					}
-				}
-			default:
-				return fmt.Errorf("invalid PlanType")
 			}
 		}
 
-		rc.updateOrderStatus(orderIds, extendOrderIds, tx)
-
+		// update order status
+		if err := rc.updateOrderStatus(orderIDs, nil, tx); err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -192,218 +291,18 @@ func (rc *PlannerController) CreatePlanner(c *gin.Context) {
 	}
 
 	// loop through materialIDs, inventoryIDs, and sum material
-	for _, matID := range req.MaterialIDs {
-		for _, invID := range req.InventoryIDs {
-			uMatID := uint(matID)
-			uInvID := uint(invID)
-			if err := rc.SumMaterial(rc.DB, "CreatePlanner", uMatID, uInvID); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-		}
-	}
-
+	// for _, matID := range req.MaterialIDs {
+	// 	for _, invID := range req.InventoryIDs {
+	// 		uMatID := uint(matID)
+	// 		uInvID := uint(invID)
+	// 		if err := rc.SumMaterial(rc.DB, "CreatePlanner", uMatID, uInvID); err != nil {
+	// 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	// 			return
+	// 		}
+	// 	}
+	// }
+	log.Println("=======END CONFIRM Plan==========")
 	c.JSON(http.StatusOK, gin.H{"message": "Planner created successfully"})
-}
-
-func (rc *PlannerController) createPlanOrder(bom *models.OrderBOM, inventoryMaterials *[]models.InventoryMaterial, DB *gorm.DB) error {
-	if bom.IsFullFilled || bom.IsCompletelyWithdraw {
-		return nil
-	}
-
-	requiredQty := bom.TargetQty - (bom.ReservedQty + bom.WithdrawedQty)
-	if requiredQty <= 0 {
-		return nil
-	}
-
-	sumUsing := int64(0)
-
-	for index, invMat := range *inventoryMaterials {
-		if invMat.MaterialID != bom.MaterialID {
-			log.Println("invMat.MaterialID != bom.BOM.MaterialID")
-			continue
-		}
-		log.Println("-------before----------")
-		log.Println("invMat: ", invMat.ID)
-		log.Println("requiredQty: ", requiredQty)
-		log.Println("invMat.AvailableQty: ", invMat.AvailableQty)
-		log.Println("invMat.Reserve: ", invMat.Reserve)
-		log.Println("sumUsing: ", sumUsing)
-		log.Println("-----------------")
-
-		if requiredQty <= 0 {
-			log.Println("---break requiredQty <= 0---")
-			break
-		}
-
-		available := invMat.AvailableQty
-		var usingQty int64
-		if available >= requiredQty {
-			usingQty = requiredQty
-		} else {
-			usingQty = invMat.AvailableQty
-		}
-		log.Println("usingQty: ", usingQty)
-
-		if usingQty <= 0 {
-			continue
-		}
-
-		// create order reserving
-		orderReserving := models.OrderReserving{
-			OrderID:             bom.OrderID,
-			OrderBOMID:          bom.ID,
-			ReceiptID:           invMat.ReceiptID,
-			InventoryMaterialID: invMat.ID,
-			Quantity:            usingQty,
-			Status:              models.OrderReservingStatus_Reserved,
-		}
-		if err := DB.Create(&orderReserving).Error; err != nil {
-			return err
-		}
-
-		// create inventory material transaction
-		transaction := models.InventoryMaterialTransaction{
-			InventoryMaterialID:      invMat.ID,
-			Quantity:                 usingQty,
-			InventoryType:            models.InventoryType_RESERVE,
-			InventoryTypeDescription: models.InventoryTypeDescription_ORDER,
-			ExistingQuantity:         invMat.Quantity,
-			ExistingReserve:          invMat.Reserve,
-			UpdatedQuantity:          invMat.Quantity,
-			UpdatedReserve:           invMat.Reserve + usingQty,
-			OrderID:                  &bom.OrderID,
-		}
-		if err := DB.Create(&transaction).Error; err != nil {
-			return err
-		}
-
-		// update inventory material
-		invMat.AvailableQty -= usingQty
-		invMat.Reserve += usingQty
-		invMat.IsOutOfStock = invMat.AvailableQty == 0
-		if err := DB.Save(&invMat).Error; err != nil {
-			return err
-		}
-
-		// update inventory material reference
-		(*inventoryMaterials)[index].AvailableQty = invMat.AvailableQty
-		(*inventoryMaterials)[index].Reserve = invMat.Reserve
-		(*inventoryMaterials)[index].IsOutOfStock = invMat.IsOutOfStock
-
-		// print memory address of invMat and (*inventoryMaterials)[index]
-		log.Println("-------print memory address of invMat and (*inventoryMaterials)[index]-------")
-		fmt.Println((*inventoryMaterials)[index])
-		fmt.Println(invMat)
-
-		// update requiredQty
-		requiredQty -= usingQty
-		sumUsing += usingQty
-
-		log.Println("-------after----------")
-		log.Println("invMat.AvailableQty: ", invMat.AvailableQty)
-		log.Println("invMat.Reserve: ", invMat.Reserve)
-		log.Println("sumUsing: ", sumUsing)
-		log.Println("requiredQty: ", requiredQty)
-		log.Println("-------end----------")
-	}
-	log.Println("---end of invmats---")
-
-	// update isFullfilled
-	bom.ReservedQty += sumUsing
-	sumAllQuantity := bom.ReservedQty + bom.WithdrawedQty
-	bom.IsFullFilled = sumAllQuantity == bom.TargetQty
-	if err := DB.Save(bom).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
-func (rc *PlannerController) createPlanExtendOrder(bom *models.ExtendOrderBOM, inventoryMaterials *[]models.InventoryMaterial, DB *gorm.DB) error {
-	if bom.IsFullFilled || bom.IsCompletelyWithdraw {
-		return nil
-	}
-
-	requiredQty := bom.Quantity - (bom.ReservedQty + bom.WithdrawedQty)
-	if requiredQty <= 0 {
-		return nil
-	}
-
-	sumUsing := int64(0)
-
-	for index, invMat := range *inventoryMaterials {
-		if requiredQty <= 0 {
-			break
-		}
-
-		available := invMat.AvailableQty
-		var usingQty int64
-		if available >= requiredQty {
-			usingQty = requiredQty
-		} else {
-			usingQty = invMat.AvailableQty
-		}
-
-		if usingQty <= 0 {
-			continue
-		}
-
-		// create order reserving
-		orderReserving := models.ExtendOrderReserving{
-			ExtendOrderID:       bom.ExtendOrderID,
-			ExtendOrderBOMID:    bom.ID,
-			ReceiptID:           invMat.ReceiptID,
-			InventoryMaterialID: invMat.ID,
-			Status:              models.OrderReservingStatus_Reserved,
-			Quantity:            usingQty,
-		}
-		if err := DB.Create(&orderReserving).Error; err != nil {
-			return err
-		}
-
-		// create inventory material transaction
-		transaction := models.InventoryMaterialTransaction{
-			InventoryMaterialID:      invMat.ID,
-			Quantity:                 usingQty,
-			InventoryType:            models.InventoryType_RESERVE,
-			InventoryTypeDescription: models.InventoryTypeDescription_EXTEND_ORDER,
-			ExistingQuantity:         invMat.Quantity,
-			ExistingReserve:          invMat.Reserve,
-			UpdatedQuantity:          invMat.Quantity,
-			UpdatedReserve:           invMat.Reserve + usingQty,
-			ExtendOrderID:            &bom.ExtendOrderID,
-		}
-		if err := DB.Create(&transaction).Error; err != nil {
-			return err
-		}
-
-		// update inventory material
-		invMat.AvailableQty -= usingQty
-		invMat.Reserve += usingQty
-		invMat.IsOutOfStock = invMat.AvailableQty == 0
-		if err := DB.Save(&invMat).Error; err != nil {
-			return err
-		}
-
-		// update inventory material reference
-		(*inventoryMaterials)[index].AvailableQty = invMat.AvailableQty
-		(*inventoryMaterials)[index].Reserve = invMat.Reserve
-		(*inventoryMaterials)[index].IsOutOfStock = invMat.IsOutOfStock
-
-		// update requiredQty
-		requiredQty -= usingQty
-		sumUsing += usingQty
-
-		// update isFullfilled
-		bom.ReservedQty += sumUsing
-		sumAllQuantity := bom.ReservedQty + bom.WithdrawedQty
-		bom.IsFullFilled = sumAllQuantity == bom.Quantity
-		if err := DB.Save(bom).Error; err != nil {
-			return err
-		}
-		return nil
-	}
-	return nil
 }
 
 func (rc *PlannerController) updateOrderStatus(orderIDs []uint, extendOrderIDs []uint, TX *gorm.DB) error {
@@ -490,217 +389,128 @@ func (rc *PlannerController) updateOrderStatus(orderIDs []uint, extendOrderIDs [
 }
 
 func (rc *PlannerController) InquiryPlan(c *gin.Context) {
-	var req struct {
-		Plans        []models.PlanModel `json:"plans"`
-		InventoryIDs []int64            `json:"inventoryIDs"`
-		MaterialIDs  []int64            `json:"materialIDs"`
-	}
+	var req models.InquiryPlan
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	var orderIds []uint
-	var extendOrderIds []uint
+	var orderIDs []uint
+	// var extendOrderIDs []uint
 
-	for _, v := range req.Plans {
-		if v.Type == models.PlanType_Order {
-			orderIds = append(orderIds, v.ID)
-		} else if v.Type == models.PlanType_ExtendOrder {
-			extendOrderIds = append(extendOrderIds, v.ID)
-		}
+	for _, v := range req.Orders {
+		orderIDs = append(orderIDs, v.ID)
 	}
 
 	var orders []models.Order
-	if err := rc.DB.
-		Preload("OrderBOMs.BOM.Material").
-		Where("id IN ?", orderIds).
+	if err := rc.
+		DB.
+		Preload("OrderBOMs", func(db *gorm.DB) *gorm.DB {
+			return db.Order("id DESC")
+		}).
+		Preload("OrderBOMs.Material", func(db *gorm.DB) *gorm.DB {
+			return db.Order("materials.id DESC")
+		}).
+		Where("id IN ?", orderIDs).
 		Find(&orders).
 		Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch orders"})
 		return
 	}
 
-	orderMaps := make(map[uint]models.Order)
-	for _, v := range orders {
-		orderMaps[v.ID] = v
+	materialMaps := make(map[uint]models.PlanOrder)
+
+	for _, order := range orders {
+		for _, bom := range *order.OrderBOMs {
+			ord := order
+			bom.Order = &ord
+			if _, ok := materialMaps[bom.MaterialID]; ok {
+				planBom := models.PlanBOM{
+					OrderBOM: bom,
+				}
+				materialMaps[bom.MaterialID] = models.PlanOrder{
+					MaterialID: bom.MaterialID,
+					Material:   *bom.Material,
+					PlanBOMs:   append(materialMaps[bom.MaterialID].PlanBOMs, planBom),
+				}
+			} else {
+				planBom := models.PlanBOM{
+					OrderBOM: bom,
+				}
+				materialMaps[bom.MaterialID] = models.PlanOrder{
+					MaterialID: bom.MaterialID,
+					Material:   *bom.Material,
+					PlanBOMs:   []models.PlanBOM{planBom},
+				}
+			}
+		}
+	}
+	planOrders := make([]models.PlanOrder, 0, len(materialMaps))
+	for _, v := range materialMaps {
+		planOrders = append(planOrders, v)
 	}
 
-	var extendOrders []models.ExtendOrder
+	// reorder planOrders by materialID
+	sort.Slice(planOrders, func(i, j int) bool {
+		return planOrders[i].MaterialID < planOrders[j].MaterialID
+	})
+
+	materialIDs := make([]uint, 0, len(materialMaps))
+	for k := range materialMaps {
+		materialIDs = append(materialIDs, k)
+	}
+
+	var sumMaterials []models.PlanSumMaterial
+
 	if err := rc.DB.
-		Preload("ExtendOrderBOMs.Material").
-		Where("id IN ?", extendOrderIds).
-		Find(&extendOrders).
+		Model(&models.InventoryMaterial{}).
+		Select("material_id, SUM(quantity) as quantity, SUM(available_qty) as available_qty, SUM(reserve) as reserve").
+		Where("material_id IN ?", materialIDs).
+		Where("inventory_id IN ?", req.InventoryIDs).
+		Where("is_out_of_stock = ?", false).
+		Group("material_id").
+		Find(&sumMaterials).
 		Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to fetch extend orders"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch inventory materials"})
 		return
 	}
 
-	extendOrderMaps := make(map[uint]models.ExtendOrder)
-	for _, v := range extendOrders {
-		extendOrderMaps[v.ID] = v
+	mapSumMaterials := make(map[uint]models.PlanSumMaterial)
+	for _, v := range sumMaterials {
+		mapSumMaterials[v.MaterialID] = v
 	}
 
-	var inventoryMaterials []models.InventoryMaterial
-	if err := rc.DB.
-		Preload("Material").
-		Where("material_id IN (?)", req.MaterialIDs).
-		Where("inventory_id IN ?", req.InventoryIDs).
-		Where("is_out_of_stock = ?", false).
-		Find(&inventoryMaterials).
-		Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to fetch inventory materials"})
-	}
+	for i, v := range planOrders {
+		if sumMaterial, ok := mapSumMaterials[v.MaterialID]; ok {
+			planOrders[i].Capability = sumMaterial.AvailableQty
 
-	var planCosts []models.PlanCost
-	for _, v := range req.Plans {
-		switch v.Type {
-		case models.PlanType_Order:
-			order := orderMaps[v.ID]
-			boms := order.OrderBOMs
-			for _, bom := range *boms {
-				if bom.IsFullFilled || bom.IsCompletelyWithdraw || bom.Material == nil {
+			cap := sumMaterial.AvailableQty
+			for j, pb := range v.PlanBOMs {
+				bom := pb.OrderBOM
+				if cap <= 0 {
+					break
+				}
+				requiredQty := bom.TargetQty - (bom.ReservedQty + bom.WithdrawedQty)
+				if requiredQty <= 0 {
 					continue
 				} else {
-					var planCost models.PlanCost
-					planCost.Material = *bom.Material
-					requiredQty := bom.TargetQty - (bom.ReservedQty + bom.WithdrawedQty)
-					if requiredQty <= 0 {
-						continue
+					var using int64
+					if cap >= requiredQty {
+						using = requiredQty
+					} else {
+						using = cap
 					}
+					planOrders[i].PlanBOMs[j].NewReserveQty = using
+					cap -= using
 
-					for index, invMat := range inventoryMaterials {
-						if requiredQty <= 0 {
-							break
-						}
-
-						if invMat.MaterialID != bom.MaterialID {
-							continue
-						}
-
-						available := invMat.AvailableQty
-						var usingQty int64
-						if available >= requiredQty {
-							usingQty = requiredQty
-						} else {
-							usingQty = invMat.AvailableQty
-						}
-
-						if usingQty <= 0 {
-							continue
-						}
-
-						// update requiredQty
-						requiredQty -= usingQty
-
-						// update isFullfilled
-						bom.ReservedQty += usingQty
-						sumAllQuantity := bom.ReservedQty + bom.WithdrawedQty
-						bom.IsFullFilled = sumAllQuantity == bom.TargetQty
-
-						// update inventory material
-						invMat.AvailableQty -= usingQty
-						invMat.Reserve += usingQty
-						invMat.IsOutOfStock = invMat.AvailableQty == 0
-
-						// update inventory material reference
-						inventoryMaterials[index].AvailableQty = invMat.AvailableQty
-						inventoryMaterials[index].Reserve = invMat.Reserve
-						inventoryMaterials[index].IsOutOfStock = invMat.IsOutOfStock
-
-						// append planCost.totalCost
-						planCost.Quantity += usingQty
-						planCost.TotalCost += ((usingQty / 100) * (invMat.Price / 100) * 100)
-						planCosts = append(planCosts, planCost)
+					total := using + bom.WithdrawedQty
+					if total == bom.TargetQty {
+						planOrders[i].PlanBOMs[j].OrderBOM.IsFullFilled = true
 					}
 				}
 			}
-		case models.PlanType_ExtendOrder:
-			extendOrder := extendOrderMaps[v.ID]
-			boms := extendOrder.ExtendOrderBOMs
-			for _, bom := range *boms {
-				if bom.IsFullFilled || bom.IsCompletelyWithdraw || bom.Material == nil {
-					continue
-				} else {
-					var planCost models.PlanCost
-					planCost.Material = *bom.Material
-
-					requiredQty := bom.Quantity - (bom.ReservedQty + bom.WithdrawedQty)
-					if requiredQty <= 0 {
-						continue
-					}
-					for index, invMat := range inventoryMaterials {
-						if requiredQty <= 0 {
-							break
-						}
-
-						if invMat.MaterialID != bom.MaterialID {
-							continue
-						}
-
-						available := invMat.AvailableQty
-						var usingQty int64
-						if available >= requiredQty {
-							usingQty = requiredQty
-						} else {
-							usingQty = invMat.AvailableQty
-						}
-
-						if usingQty <= 0 {
-							continue
-						}
-
-						// update requiredQty
-						requiredQty -= usingQty
-
-						// update isFullfilled
-						bom.ReservedQty += usingQty
-						sumAllQuantity := bom.ReservedQty + bom.WithdrawedQty
-						bom.IsFullFilled = sumAllQuantity == bom.Quantity
-
-						// update inventory material
-						invMat.AvailableQty -= usingQty
-						invMat.Reserve += usingQty
-						invMat.IsOutOfStock = invMat.AvailableQty == 0
-
-						// update inventory material reference
-						inventoryMaterials[index].AvailableQty = invMat.AvailableQty
-						inventoryMaterials[index].Reserve = invMat.Reserve
-						inventoryMaterials[index].IsOutOfStock = invMat.IsOutOfStock
-
-						// append to planCosts
-						planCost.Quantity += usingQty
-						planCost.TotalCost += ((usingQty / 100) * (invMat.Price / 100) * 100)
-						planCosts = append(planCosts, planCost)
-					}
-				}
-
-			}
-		default:
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid PlanType"})
-			return
 		}
 	}
-
-	// group planCosts by materialID
-	var planCostsMap = make(map[uint]models.PlanCost)
-	for _, v := range planCosts {
-		if _, ok := planCostsMap[v.Material.ID]; ok {
-			planCostsMap[v.Material.ID] = models.PlanCost{
-				Material:  v.Material,
-				Quantity:  planCostsMap[v.Material.ID].Quantity + v.Quantity,
-				TotalCost: (planCostsMap[v.Material.ID].TotalCost + v.TotalCost) / 100,
-			}
-		} else {
-			planCostsMap[v.Material.ID] = v
-		}
-	}
-
-	// convert map to slice
-	var cPlanCosts []models.PlanCost
-	for _, v := range planCostsMap {
-		cPlanCosts = append(cPlanCosts, v)
-	}
-
-	c.JSON(http.StatusOK, gin.H{"planCosts": cPlanCosts, "planners": req.Plans})
+	c.JSON(http.StatusOK, planOrders)
 }
