@@ -27,7 +27,7 @@ func (prc *PurchaseRequisitionController) GetNewPRInfo(c *gin.Context) {
 	var purchaseSuggestions []models.PurchaseSuggestion
 	if err := prc.DB.
 		Preload("OrderBOM.Order.Drawing").
-		Preload("OrderBOM.BOM.Material").
+		Preload("OrderBOM.Material").
 		Where("status IN (?)", []string{models.PurchaseSuggestionStatus_Ready, models.PurchaseSuggestionStatus_InProgress}).
 		Find(&purchaseSuggestions).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve purchaseSuggestions"})

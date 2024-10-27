@@ -97,8 +97,9 @@ func main() {
 		log.Println("Seeding data...")
 		initUsers(db)
 		initInventory(db)
-		initProject(db)
 		initSlugger(db)
+		loadProjects(db, "./migrate/projects.csv")
+		loadProjectStore(db, "./migrate/project_stores.csv")
 		loadCategoriesFromCSV(db, "./migrate/categories.csv")
 		loadMaterialsFromCSV(db, "./migrate/materials.csv")
 		loadDrawingsFromCSV(db, "./migrate/drawings.csv")
@@ -180,22 +181,78 @@ func initInventory(db *gorm.DB) {
 	}
 }
 
-// init project model
-func initProject(db *gorm.DB) {
-	projects := []models.Project{
-		{
-			Slug:  "PRJ-001",
-			Title: "NAWAMIN",
-		},
-		{
-			Slug:  "PRJ-002",
-			Title: "RamIndhra",
-		},
+func loadProjects(db *gorm.DB, filePath string) error {
+	// Open the CSV file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open CSV file: %w", err)
+	}
+	defer file.Close()
+
+	// Create a new CSV reader
+	reader := csv.NewReader(file)
+
+	// Read the CSV records
+	records, err := reader.ReadAll()
+	if err != nil {
+		return fmt.Errorf("failed to read CSV records: %w", err)
 	}
 
-	for _, v := range projects {
-		db.Create(&v)
+	// Skip the first header row
+	records = records[1:]
+
+	// Process each record
+	for _, record := range records {
+		slug := record[0]
+		title := record[1]
+		project := models.Project{
+			Slug:  slug,
+			Title: title,
+		}
+		// Save the drawing to the database
+		if err := db.Create(&project).Error; err != nil {
+			return fmt.Errorf("failed to save project to database: %w", err)
+		}
 	}
+	return nil
+}
+
+func loadProjectStore(db *gorm.DB, filePath string) error {
+	// Open the CSV file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open CSV file: %w", err)
+	}
+	defer file.Close()
+
+	// Create a new CSV reader
+	reader := csv.NewReader(file)
+
+	// Read the CSV records
+	records, err := reader.ReadAll()
+	if err != nil {
+		return fmt.Errorf("failed to read CSV records: %w", err)
+	}
+
+	// Skip the first header row
+	records = records[1:]
+
+	// Process each record
+	for _, record := range records {
+		slug := record[0]
+		title := record[1]
+		projectID, _ := strconv.Atoi(record[2])
+		project := models.ProjectStore{
+			Slug:      slug,
+			Title:     title,
+			ProjectID: uint(projectID),
+		}
+		// Save the drawing to the database
+		if err := db.Create(&project).Error; err != nil {
+			return fmt.Errorf("failed to save project to database: %w", err)
+		}
+	}
+	return nil
 }
 
 func loadCategoriesFromCSV(db *gorm.DB, filePath string) error {

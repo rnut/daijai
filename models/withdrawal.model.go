@@ -13,6 +13,8 @@ type Withdrawal struct {
 	CreatedByID            uint    `gorm:"not null"`
 	CreatedBy              *Member `gorm:"foreignkey:CreatedByID"`
 	WithdrawalStatus       string  `gorm:"default:'pending'"`
+	ProjectStoreID         uint
+	ProjectStore           *ProjectStore
 	WithdrawalApprovements *[]WithdrawalApprovement
 }
 

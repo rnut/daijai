@@ -18,7 +18,6 @@ type WithdrawalController struct {
 	BaseController
 }
 
-// NewWithdrawalController creates a new instance of WithdrawalController.
 func NewWithdrawalController(db *gorm.DB) *WithdrawalController {
 	return &WithdrawalController{
 		DB: db,
@@ -31,10 +30,10 @@ func (wc *WithdrawalController) GetWithdrawalBySlug(c *gin.Context) {
 	if err := wc.DB.
 		Preload("Project").
 		Preload("Order.Drawing").
-		Preload("WithdrawalApprovements.WithdrawalTransactions.OrderReserving.OrderBOM.BOM.Material").
+		Preload("WithdrawalApprovements.WithdrawalTransactions.OrderReserving.OrderBOM.Material").
 		Preload("WithdrawalApprovements.WithdrawalAdminTransactions.Material").
 		Preload("WithdrawalApprovements.ApprovedBy").
-		Preload("Order.OrderBOMs.BOM.Material").
+		Preload("Order.OrderBOMs.Material").
 		Preload("CreatedBy").
 		First(&withdrawal, "slug = ?", slug).Error; err != nil {
 		c.JSON(http.StatusPreconditionRequired, gin.H{"error": "Withdrawal not found"})
@@ -76,9 +75,10 @@ func (wc *WithdrawalController) GetAllWithdrawals(c *gin.Context) {
 
 func (wc *WithdrawalController) CreateNonSpecificOrderWithdrawal(c *gin.Context) {
 	var request struct {
-		Slug      string `json:"Slug"`
-		ProjectID int    `json:"ProjectID"`
-		Notes     string `json:"Notes"`
+		Slug           string `json:"Slug"`
+		ProjectID      int    `json:"ProjectID"`
+		Notes          string `json:"Notes"`
+		ProjectStoreID int    `json:"ProjectStoreID"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -105,6 +105,7 @@ func (wc *WithdrawalController) CreateNonSpecificOrderWithdrawal(c *gin.Context)
 		withdrawal.Notes = request.Notes
 		withdrawal.CreatedByID = member.ID
 		withdrawal.WithdrawalStatus = models.WithdrawalStatus_InProgress
+		withdrawal.ProjectStoreID = uint(request.ProjectStoreID)
 
 		if err := tx.Create(&withdrawal).Error; err != nil {
 			return err
@@ -133,6 +134,7 @@ func (wc *WithdrawalController) CreateWithdrawalAdmin(c *gin.Context) {
 		ProjectID         int                         `json:"ProjectID"`
 		WithdrawMaterials []models.WithdrawalMaterial `json:"WithdrawMaterials"`
 		Notes             string                      `json:"Notes"`
+		ProjectStoreID    int                         `json:"ProjectStoreID"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -170,6 +172,7 @@ func (wc *WithdrawalController) CreateWithdrawalAdmin(c *gin.Context) {
 		withdrawal.Notes = request.Notes
 		withdrawal.CreatedByID = member.ID
 		withdrawal.WithdrawalStatus = models.WithdrawalStatus_Done
+		withdrawal.ProjectStoreID = uint(request.ProjectStoreID)
 
 		if err := tx.Create(&withdrawal).Error; err != nil {
 			return err
@@ -269,10 +272,11 @@ func (wc *WithdrawalController) CreateWithdrawalAdmin(c *gin.Context) {
 // CreateWithdrawal handles the creation of a new withdrawal transaction.
 func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 	var request struct {
-		Slug      string `json:"Slug"`
-		ProjectID int    `json:"ProjectID"`
-		OrderID   int    `json:"OrderID"`
-		Notes     string `json:"Notes"`
+		Slug           string `json:"Slug"`
+		ProjectID      int    `json:"ProjectID"`
+		OrderID        int    `json:"OrderID"`
+		Notes          string `json:"Notes"`
+		ProjectStoreID int    `json:"ProjectStoreID"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -295,7 +299,6 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 	if err := wc.DB.
 		Preload("Drawing").
 		Preload("OrderBOMs").
-		Preload("OrderBOMs.BOM").
 		Preload("OrderReservings").
 		First(&order, request.OrderID).
 		Error; err != nil {
@@ -314,6 +317,7 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 		withdrawal.Notes = request.Notes
 		withdrawal.CreatedByID = member.ID
 		withdrawal.WithdrawalStatus = models.WithdrawalStatus_InProgress
+		withdrawal.ProjectStoreID = uint(request.ProjectStoreID)
 
 		if err := tx.Create(&withdrawal).Error; err != nil {
 			return err
@@ -552,9 +556,9 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 	if err := wc.DB.
 		Preload("Project").
 		Preload("Order.Drawing").
-		Preload("WithdrawalApprovements.WithdrawalTransactions.OrderReserving.OrderBOM.BOM.Material").
+		Preload("WithdrawalApprovements.WithdrawalTransactions.OrderReserving.OrderBOM.Material").
 		Preload("WithdrawalApprovements.ApprovedBy").
-		Preload("Order.OrderBOMs.BOM.Material").
+		Preload("Order.OrderBOMs.Material").
 		Preload("CreatedBy").
 		First(&withdrawal, wapm.ID).Error; err != nil {
 		c.JSON(http.StatusPreconditionRequired, gin.H{"error": "Withdrawal not found"})
@@ -658,7 +662,10 @@ func (mc *WithdrawalController) DeleteWithdraw(c *gin.Context) {
 func (mc *WithdrawalController) GetNewWithdrawAdminInfo(c *gin.Context) {
 	// get projects
 	var projects []models.Project
-	if err := mc.DB.Find(&projects).Error; err != nil {
+	if err := mc.
+		DB.
+		Preload("ProjectStores").
+		Find(&projects).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Projects"})
 		return
 	}
@@ -698,7 +705,10 @@ func (mc *WithdrawalController) GetNewWithdrawAdminInfo(c *gin.Context) {
 func (mc *WithdrawalController) GetNewWithdrawInfo(c *gin.Context) {
 	// get projects
 	var projects []models.Project
-	if err := mc.DB.Find(&projects).Error; err != nil {
+	if err := mc.
+		DB.
+		Preload("ProjectStores").
+		Find(&projects).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Projects"})
 		return
 	}
