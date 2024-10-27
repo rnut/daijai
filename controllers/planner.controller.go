@@ -332,9 +332,7 @@ func (rc *PlannerController) updateOrderStatus(orderIDs []uint, extendOrderIDs [
 			order.Status = models.OrderStatus_Done
 			order.PlanStatus = models.OrderPlanStatus_Complete
 		} else {
-			if order.Status == models.OrderStatus_Idle {
-				order.Status = models.OrderStatus_Pending
-			}
+			order.Status = models.OrderStatus_Pending
 			if isFullfilled {
 				order.PlanStatus = models.OrderPlanStatus_Staged
 			} else {

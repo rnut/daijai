@@ -11,6 +11,8 @@ type WithdrawalApprovement struct {
 	ApprovedBy                  *Member `gorm:"foreignkey:ApprovedByID"`
 	WithdrawalTransactions      *[]WithdrawalTransaction
 	WithdrawalAdminTransactions *[]WithdrawalAdminTransaction
+	ProjectStoreID              uint
+	ProjectStore                *ProjectStore
 }
 
 const (

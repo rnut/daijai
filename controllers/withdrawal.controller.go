@@ -33,6 +33,7 @@ func (wc *WithdrawalController) GetWithdrawalBySlug(c *gin.Context) {
 		Preload("WithdrawalApprovements.WithdrawalTransactions.OrderReserving.OrderBOM.Material").
 		Preload("WithdrawalApprovements.WithdrawalAdminTransactions.Material").
 		Preload("WithdrawalApprovements.ApprovedBy").
+		Preload("WithdrawalApprovements.ProjectStore").
 		Preload("Order.OrderBOMs.Material").
 		Preload("CreatedBy").
 		First(&withdrawal, "slug = ?", slug).Error; err != nil {
@@ -105,8 +106,6 @@ func (wc *WithdrawalController) CreateNonSpecificOrderWithdrawal(c *gin.Context)
 		withdrawal.Notes = request.Notes
 		withdrawal.CreatedByID = member.ID
 		withdrawal.WithdrawalStatus = models.WithdrawalStatus_InProgress
-		withdrawal.ProjectStoreID = uint(request.ProjectStoreID)
-
 		if err := tx.Create(&withdrawal).Error; err != nil {
 			return err
 		}
@@ -115,6 +114,7 @@ func (wc *WithdrawalController) CreateNonSpecificOrderWithdrawal(c *gin.Context)
 		withdrawalApprovement = models.WithdrawalApprovement{
 			WithdrawalID:                withdrawal.ID,
 			WithdrawalApprovementStatus: models.WithdrawalApprovementStatus_Pending,
+			ProjectStoreID:              uint(request.ProjectStoreID),
 		}
 		if err := tx.Create(&withdrawalApprovement).Error; err != nil {
 			return err
@@ -172,7 +172,6 @@ func (wc *WithdrawalController) CreateWithdrawalAdmin(c *gin.Context) {
 		withdrawal.Notes = request.Notes
 		withdrawal.CreatedByID = member.ID
 		withdrawal.WithdrawalStatus = models.WithdrawalStatus_Done
-		withdrawal.ProjectStoreID = uint(request.ProjectStoreID)
 
 		if err := tx.Create(&withdrawal).Error; err != nil {
 			return err
@@ -183,6 +182,7 @@ func (wc *WithdrawalController) CreateWithdrawalAdmin(c *gin.Context) {
 			WithdrawalID:                withdrawal.ID,
 			WithdrawalApprovementStatus: models.WithdrawalApprovementStatus_Approved,
 			ApprovedByID:                &member.ID,
+			ProjectStoreID:              uint(request.ProjectStoreID),
 		}
 		if err := tx.Create(&withdrawalApprovement).Error; err != nil {
 			return err
@@ -317,8 +317,6 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 		withdrawal.Notes = request.Notes
 		withdrawal.CreatedByID = member.ID
 		withdrawal.WithdrawalStatus = models.WithdrawalStatus_InProgress
-		withdrawal.ProjectStoreID = uint(request.ProjectStoreID)
-
 		if err := tx.Create(&withdrawal).Error; err != nil {
 			return err
 		}
@@ -327,6 +325,7 @@ func (wc *WithdrawalController) CreateWithdrawal(c *gin.Context) {
 		withdrawalApprovement = models.WithdrawalApprovement{
 			WithdrawalID:                withdrawal.ID,
 			WithdrawalApprovementStatus: models.WithdrawalApprovementStatus_Pending,
+			ProjectStoreID:              uint(request.ProjectStoreID),
 		}
 		if err := tx.Create(&withdrawalApprovement).Error; err != nil {
 			return err
