@@ -55,4 +55,5 @@ const (
 	ROLE_User    = "user"
 	ROLE_Tech    = "technician"
 	ROLE_Manager = "manager"
+	ROLE_PLANNER = "planner"
 )

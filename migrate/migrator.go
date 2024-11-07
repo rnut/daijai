@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -95,7 +96,7 @@ func main() {
 
 	if seedFlag {
 		log.Println("Seeding data...")
-		initUsers(db)
+		loadUsers(db, "./migrate/users.csv")
 		initInventory(db)
 		initSlugger(db)
 		loadProjects(db, "./migrate/projects.csv")
@@ -130,38 +131,55 @@ func initSlugger(db *gorm.DB) {
 	}
 }
 
-func initUsers(db *gorm.DB) {
-	pwd := "$2a$10$zeswe0/DbG/2k.4KlIbLTO2bYwmvpbXMYp2aJf.dyy7FXyHOmg9xm"
-	users := []models.User{
-		{
-			Slug:     "ADM-001",
-			Username: "salah",
-			Password: pwd,
-			FullName: "John Doe",
-			Role:     models.ROLE_Admin,
-			Tel:      "0990938983",
-		},
-		{
-			Slug:     "TCH-001",
-			Username: "woofoo",
-			Password: pwd,
-			FullName: "Woo Foo",
-			Role:     models.ROLE_Tech,
-			Tel:      "0994441111",
-		},
-		{
-			Slug:     "MNG-01",
-			Username: "johndoe",
-			Password: pwd,
-			FullName: "Manager johndoe",
-			Role:     models.ROLE_Manager,
-			Tel:      "6666666666",
-		},
+func loadUsers(db *gorm.DB, filePath string) error {
+	log.Println("Loading users from CSV file...")
+	file, err := os.Open(filePath)
+	if err != nil {
+		log.Println("Failed to open CSV file: ", err)
+		return fmt.Errorf("failed to open CSV file: %w", err)
+	}
+	defer file.Close()
+
+	// Create a new CSV reader
+	reader := csv.NewReader(file)
+
+	// Read the CSV records
+	records, err := reader.ReadAll()
+	if err != nil {
+		log.Println("Failed to read CSV records: ", err)
+		return fmt.Errorf("failed to read CSV records: %w", err)
 	}
 
-	for _, user := range users {
-		db.Create(&user)
+	// Skip the first header row
+	records = records[1:]
+
+	// Process each record
+	for _, record := range records {
+		slug := record[0]
+		username := record[1]
+		pwd := record[2]
+		fullName := record[3]
+		role := record[4]
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost)
+		if err != nil {
+			log.Println("Failed to hash password: ", err)
+			continue
+		}
+
+		user := models.User{
+			Slug:     slug,
+			Username: username,
+			Password: string(hashedPassword),
+			FullName: fullName,
+			Role:     role,
+		}
+		// Save the drawing to the database
+		if err := db.Create(&user).Error; err != nil {
+			return fmt.Errorf("failed to save project to database: %w", err)
+		}
 	}
+	log.Println("Users loaded successfully")
+	return nil
 }
 
 func initInventory(db *gorm.DB) {
@@ -406,7 +424,6 @@ func loadMateriailOfDrawing(db *gorm.DB, filePath string) error {
 
 	// Process each record
 	for _, record := range records {
-		log.Println(record)
 		quantity, _ := strconv.Atoi(record[0])
 		drawingID, _ := strconv.Atoi(record[1])
 		materialID, _ := strconv.Atoi(record[2])
