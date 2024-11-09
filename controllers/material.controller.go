@@ -260,6 +260,8 @@ func (mc *MaterialController) UpdateMaterial(c *gin.Context) {
 	existingMaterial.ImagePath = material.ImagePath
 	existingMaterial.Supplier = material.Supplier
 	existingMaterial.DefaultPrice = material.DefaultPrice
+	existingMaterial.Max = material.Max
+	existingMaterial.Min = material.Min
 
 	if err := mc.DB.Save(&existingMaterial).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update material"})
