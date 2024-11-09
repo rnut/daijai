@@ -1,0 +1,20 @@
+Slug,UserName,Password,Fullname,Role
+ADM-001,salah,secretpassword,mo salah,admin
+TCH-001,woofoo,secretpassword,woo foo,technician
+MNG-01,johndoe,secretpassword,John Doe,manager
+FM-001,Thanajak.Sa,1999,Thanajak Sangsattya,manager
+P-002,Soonthorn.Si,1983,Soonthorn Sinpho,planner
+P-001,Suppachok.Su,1992,Suppachok Sukmanee,planner
+AD-001,Garuna.Bu,1991,Garuna Buranasin,admin
+AD-002,Sukanda.Ba,1981,Sukanda Bamberger,admin
+AD-003,Malaitong.Bu,1992,Malaitong Butberger,admin
+PM-001,Prachuab.Bu,1968,Prachuab Bunsom,manager
+PM-002,Prasart.Mu,1971,Prasart Mungsuntla,manager
+PM-003,Phairot.Ru,1979,Phairot Ruenbut,manager
+L-001,Anek.In,1976,Anek Intawong,technician
+L-002,Watchara,1990,Watchara Thobnoi,technician
+L-003,Sumrouy.Wo,1971,Sumrouy Wongpinij,technician
+L-004,Surachart.Wo,1965,Surachart Wonghajak,technician
+L-005,Manit.Ch,1972,Manit Chaweewong,technician
+L-006,Narissra.Ju,1985,Narissra Jumpee,technician
+L-007,Bunchock.Di,1994,Bunchock Dikasem,technician
