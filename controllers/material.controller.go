@@ -44,6 +44,54 @@ func (mc *MaterialController) CreateMaterial(c *gin.Context) {
 	c.JSON(http.StatusCreated, material)
 }
 
+// create search material by title or subtitle or supplier or slug
+func (mc *MaterialController) SearchMaterials(c *gin.Context) {
+	search := strings.ToLower(c.Query("q"))
+	isFG := c.Query(models.MaterialType_Param) == models.MaterialType_FinishedGood
+	var materials []models.Material
+	count := int64(0)
+
+	query := mc.
+		DB.
+		Where("LOWER(title) LIKE LOWER(?) OR LOWER(subtitle) LIKE LOWER(?) OR LOWER(supplier) LIKE LOWER(?) OR LOWER(slug) LIKE LOWER(?)", "%"+search+"%", "%"+search+"%", "%"+search+"%", "%"+search+"%").
+		Where("is_fg = ?", isFG)
+
+	if err := query.
+		Model(&models.Material{}).
+		Count(&count).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count materials"})
+		return
+	}
+
+	if err := query.
+		Preload("Category").
+		Where("is_fg = ?", isFG).
+		Order("materials.id ASC").
+		Find(&materials).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve materials"})
+		return
+	}
+
+	category := models.Category{
+		Slug:      "",
+		Title:     fmt.Sprintf("Search result `%s`", search),
+		Subtitle:  "Number of Results: " + strconv.FormatInt(count, 10),
+		Materials: materials,
+	}
+
+	result := struct {
+		Query           string
+		NumberOfResults int64
+		Categories      []models.Category
+	}{
+		Query:           search,
+		NumberOfResults: count,
+		Categories:      []models.Category{category},
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
 // Query materials by category, inventory, and material type
 func (mc *MaterialController) QueryMaterials(c *gin.Context) {
 	categoryID := c.Query("categoryID")

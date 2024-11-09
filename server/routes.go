@@ -107,6 +107,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		materials.PUT("/:id", materialController.UpdateMaterial)
 		materials.PUT("/adjust/:id", materialController.AdjustMaterialQuantity)
 		materials.DELETE("/:id", materialController.DeleteMaterial)
+		materials.GET("/search", materialController.SearchMaterials)
 	}
 
 	drawings := router.Group("drawings")
