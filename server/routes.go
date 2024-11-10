@@ -248,5 +248,13 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		planner.POST("/confirm", plannerCtrl.CreatePlanner)
 		planner.POST("/inquiry", plannerCtrl.InquiryPlan)
 	}
+
+	filters := router.Group("filters")
+	{
+		filterController := controllers.NewFilterController(db)
+		filters.GET("/categories", filterController.GetCategories)
+		filters.GET("/categories/:id/materials", filterController.GetMaterialsByCategoryID)
+	}
+
 	return router
 }

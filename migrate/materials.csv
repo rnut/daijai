@@ -1,3 +1,4 @@
+SLUG,TITLE,SUBTITLE,CATEGORY_ID,IS_FG
 DA0001,ไม้HDF4mm,เปลือย1870x2450mm.,1,0
 DA0002,ไม้HDF4mm,เปลือย2450x3010mm.,1,0
 DA0003,ไม้HDF4mm,เปลือย1200x2400mm.,1,0
@@ -48,3 +49,13 @@ DA0047,ไม้MDF6mm,เปลือย1200x2400mm,1,0
 DA0048,แผ่นPlasmaBoard15mm,เปลือย1200x2400mm.,1,0
 DA0049,แผ่นPlasmaBoard18mm,เปลือย1200x2400mm.,1,0
 DA0050,แผ่นSPC4mm,เปลือย950x3000mm.,1,0
+DC0061,Oak Wood,Unfinished 1200x2400mm.,2,0
+DC0062,Maple Wood,Unfinished 1500x3000mm.,2,0
+DC0063,Cherry Wood,Unfinished 1800x3600mm.,2,0
+DC0064,Walnut Wood,Unfinished 2000x4000mm.,2,0
+DC0065,Birch Wood,Unfinished 2200x4400mm.,2,0
+DC0066,Teak Wood,Unfinished 2400x4800mm.,2,0
+DC0067,Poplar Wood,Unfinished 2600x5200mm.,2,0
+DC0068,Redwood,Unfinished 2800x5600mm.,2,0
+DC0069,White Pine,Unfinished 3000x6000mm.,2,0
+DC0070,Blackwood,Unfinished 3200x6400mm.,2,0

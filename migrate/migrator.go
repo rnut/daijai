@@ -97,8 +97,8 @@ func main() {
 	if seedFlag {
 		log.Println("Seeding data...")
 		loadUsers(db, "./migrate/users.csv")
-		initInventory(db)
 		initSlugger(db)
+		initInventory(db)
 		loadProjects(db, "./migrate/projects.csv")
 		loadProjectStore(db, "./migrate/project_stores.csv")
 		loadCategoriesFromCSV(db, "./migrate/categories.csv")
@@ -327,6 +327,9 @@ func loadMaterialsFromCSV(db *gorm.DB, filePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read CSV records: %w", err)
 	}
+
+	// Skip the first header row
+	records = records[1:]
 
 	// Process each record
 	for _, record := range records {

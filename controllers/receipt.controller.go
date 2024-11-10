@@ -41,7 +41,10 @@ func (rc *ReceiptController) GetNewReceiptInfo(c *gin.Context) {
 
 	// get all prs
 	var prs []models.Purchase
-	if err := rc.DB.Find(&prs).Error; err != nil {
+	if err := rc.
+		DB.
+		Where("is_approve = ?", true).
+		Find(&prs).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve purchase requisitions"})
 		return
 	}
