@@ -55,6 +55,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		categories.GET("/:id", categoryController.GetCategoryByID)
 		categories.PUT("/:id", categoryController.UpdateCategory)
 		categories.DELETE("/:id", categoryController.DeleteCategory)
+		categories.GET("/:id/materials", categoryController.GetCategoryMaterials)
 	}
 
 	projectStore := router.Group("projectStores")

@@ -11,6 +11,7 @@ import (
 
 type CategoryController struct {
 	DB *gorm.DB
+	BaseController
 }
 
 // NewCategoryController creates a new instance of CategoryController.
@@ -42,7 +43,6 @@ func (mc *CategoryController) GetCategories(c *gin.Context) {
 
 	isFg := c.Query(models.MaterialType_Param) == models.MaterialType_FinishedGood
 	if err := mc.DB.
-		Preload("Materials").
 		Where("is_fg = ?", isFg).
 		Find(&categories).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve categories"})
@@ -115,4 +115,23 @@ func (mc *CategoryController) DeleteCategory(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Category deleted successfully"})
+}
+
+// GetMaterials returns a list of all materials.
+func (mc *CategoryController) GetCategoryMaterials(c *gin.Context) {
+	categoryID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		mc.LogErrorAndSendBadRequest(c, "Invalid category ID")
+		return
+	}
+	var materials []models.Material
+	if err := mc.DB.
+		Where("category_id = ?", categoryID).
+		Preload("Sums").
+		Order("id ASC").
+		Find(&materials).Error; err != nil {
+		mc.LogErrorAndSendBadRequest(c, "Failed to retrieve materials")
+		return
+	}
+	c.JSON(http.StatusOK, materials)
 }
