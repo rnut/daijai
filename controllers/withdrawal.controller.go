@@ -473,6 +473,7 @@ func (wc *WithdrawalController) ApproveWithdrawal(c *gin.Context) {
 			reserve := wts.OrderReserving
 			// update inventory material
 			reserve.InventoryMaterial.Withdrawed += reserve.Quantity
+			reserve.InventoryMaterial.Reserve -= reserve.Quantity
 			if err := tx.Save(&reserve.InventoryMaterial).Error; err != nil {
 				return err
 			}
