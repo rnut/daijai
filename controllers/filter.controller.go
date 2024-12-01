@@ -28,8 +28,29 @@ func (ctrl *FilterController) GetCategories(c *gin.Context) {
 
 func (ctrl *FilterController) GetMaterialsByCategoryID(c *gin.Context) {
 	categoryID := c.Param("id")
+	showPrice := c.Query("showPrice")
+	showStock := c.Query("showStock")
+	showSupplier := c.Query("showSupplier")
+
 	var materials []models.Material
-	if err := ctrl.DB.Where("category_id = ?", categoryID).Find(&materials).Error; err != nil {
+	query := ctrl.DB.Debug().Where("category_id = ?", categoryID)
+
+	allowFields := []string{"id", "slug", "title", "subtitle", "image_path", "category_id", "is_fg"}
+	if showPrice == "true" {
+		allowFields = append(allowFields, "default_price")
+	}
+	if showSupplier == "true" {
+		allowFields = append(allowFields, "supplier")
+	}
+	query = query.Select(allowFields)
+
+	if showStock == "true" {
+		query = query.Preload("Sums")
+	}
+	if err := query.
+		Order("id asc").
+		Find(&materials).
+		Error; err != nil {
 		ctrl.LogErrorAndSendBadRequest(c, "Failed to get materials for category")
 		return
 	}

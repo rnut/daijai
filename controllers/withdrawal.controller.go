@@ -16,6 +16,7 @@ import (
 type WithdrawalController struct {
 	DB *gorm.DB
 	BaseController
+	DebugController
 }
 
 func NewWithdrawalController(db *gorm.DB) *WithdrawalController {
@@ -190,6 +191,8 @@ func (wc *WithdrawalController) CreateWithdrawalAdmin(c *gin.Context) {
 
 		// create admin withdrawal transaction
 		for _, wm := range request.WithdrawMaterials {
+			log.Println("--------wm-------")
+			wc.PrintJSON(wm)
 			awt := models.WithdrawalAdminTransaction{
 				WithdrawalApprovementID: withdrawalApprovement.ID,
 				MaterialID:              wm.MaterialID,
@@ -211,22 +214,26 @@ func (wc *WithdrawalController) CreateWithdrawalAdmin(c *gin.Context) {
 			}
 
 			needQty := wm.Quantity
+			log.Println("--------BEGIN:needQty: ", needQty, "-------")
 			for _, invMat := range invMats {
-				if needQty == 0 {
+				log.Println("--------invMat-------")
+				log.Println("needQTY: ", needQty)
+				wc.PrintJSON(invMat)
+
+				if needQty <= 0 {
 					break
 				}
 
 				existingQty := invMat.AvailableQty
-				if invMat.Quantity >= needQty {
+				if existingQty >= needQty {
 					invMat.Withdrawed += needQty
 					invMat.AvailableQty = invMat.AvailableQty - needQty
 					needQty = 0
 				} else {
-					invMat.Withdrawed += invMat.Quantity
+					invMat.Withdrawed += existingQty
 					invMat.AvailableQty = 0
-					needQty -= invMat.Quantity
+					needQty -= existingQty
 				}
-				log.Println(invMat.AvailableQty)
 
 				// update out of stock
 				if invMat.AvailableQty == 0 {
@@ -394,7 +401,6 @@ func (wc *WithdrawalController) UpdateWithdrawal(c *gin.Context) {
 
 		return nil
 	}); err != nil {
-		log.Println(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
 	}
@@ -776,18 +782,13 @@ func (mc *WithdrawalController) AdjustOrderReserving(c *gin.Context) {
 	if err := mc.DB.Transaction(func(tx *gorm.DB) error {
 		diff := request.AdjustedQuantity - orderReserving.Quantity
 		needQty := diff
-		log.Printf("diff: %d\n", diff)
 		if orderReserving.InventoryMaterial.AvailableQty > 0 {
 			ivtm := orderReserving.InventoryMaterial
 			avialableQty := ivtm.AvailableQty
-			log.Printf("--------use same ivtm--------\n %d\n %+v\n", avialableQty, ivtm)
-
 			var used int64
 			if avialableQty >= diff {
-				log.Printf("use only one ivtm: avialableQty >= diff\n")
 				used = diff
 			} else {
-				log.Printf("cut off same ivtm\n")
 				used = avialableQty
 			}
 
@@ -808,9 +809,7 @@ func (mc *WithdrawalController) AdjustOrderReserving(c *gin.Context) {
 			needQty = diff - used
 		}
 
-		log.Printf("needQty: %d", needQty)
 		if needQty != 0 {
-			log.Printf("--------new ivtm--------\n needQty: %d", needQty)
 			// find available inventory material
 			var invMats []models.InventoryMaterial
 			if err := tx.
@@ -821,16 +820,12 @@ func (mc *WithdrawalController) AdjustOrderReserving(c *gin.Context) {
 				Error; err != nil {
 				return err
 			}
-			log.Printf("--------invMats--------\n%+v\n count: %d", invMats, len(invMats))
-			log.Printf("--------for loop--------\n")
 			for _, invMat := range invMats {
 				// existingReserve := invMat.Reserve
 				var used int64
 				if needQty == 0 {
 					break
 				}
-				log.Printf("invMat:%+v\n needQty: %d", invMat, needQty)
-
 				if invMat.AvailableQty >= needQty {
 					used = needQty
 					needQty = 0

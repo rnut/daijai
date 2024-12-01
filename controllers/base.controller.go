@@ -61,10 +61,6 @@ func (bc *BaseController) RequestSlug(slug *string, db *gorm.DB, table string) e
 }
 
 func (bc *BaseController) SumMaterial(db *gorm.DB, tag string, matID uint, invID uint) error {
-	fmt.Println("========================================")
-	fmt.Println("SumMaterial")
-	fmt.Println("========================================")
-	// count
 	var counter struct {
 		Quantity int64
 		Price    int64
@@ -78,10 +74,6 @@ func (bc *BaseController) SumMaterial(db *gorm.DB, tag string, matID uint, invID
 		Find(&counter).Error; err != nil {
 		return err
 	}
-
-	log.Printf("tag: %s", tag)
-	log.Printf("counter: %+v\n", counter)
-
 	// update sum material inventory
 	var sumMaterialInventory models.SumMaterialInventory
 	if err := db.
@@ -98,11 +90,6 @@ func (bc *BaseController) SumMaterial(db *gorm.DB, tag string, matID uint, invID
 	if err := db.Save(&sumMaterialInventory).Error; err != nil {
 		return err
 	}
-	log.Printf("sum: %+v\n", sumMaterialInventory)
-
-	fmt.Println("========================================")
-	fmt.Println("end")
-	fmt.Println("========================================")
 	return nil
 }
 
