@@ -1,13 +1,17 @@
 Slug,UserName,Password,Fullname,Role
 ADM-001,salah,secretpassword,mo salah,admin
-TCH-001,woofoo,secretpassword,woo foo,technician
-MNG-01,johndoe,secretpassword,John Doe,manager
+MNG-01,george,secretpassword,John Doe,manager
+PN-01,planner,secretpassword,John Doe,planner
+SPV-01,supervisor,secretpassword,John Doe,supervisor
+SKP-01,storekeeper,secretpassword,John Doe,storekeeper
+TCH-01,johndoe,secretpassword,John Doe,technician
+VW-001,demo-viewer,secretpassword,woo foo,viewer
 FM-001,Thanajak.Sa,1999,Thanajak Sangsattya,manager
 P-002,Soonthorn.Si,1983,Soonthorn Sinpho,planner
 P-001,Suppachok.Su,1992,Suppachok Sukmanee,planner
 AD-001,Garuna.Bu,1991,Garuna Buranasin,admin
-AD-002,Sukanda.Ba,1981,Sukanda Bamberger,admin
-AD-003,Malaitong.Bu,1992,Malaitong Butberger,admin
+AD-002,Sukanda.Ba,1981,Sukanda Bamberger,supervisor
+AD-003,Malaitong.Bu,1992,Malaitong Butberger,supervisor
 PM-001,Prachuab.Bu,1968,Prachuab Bunsom,manager
 PM-002,Prasart.Mu,1971,Prasart Mungsuntla,manager
 PM-003,Phairot.Ru,1979,Phairot Ruenbut,manager

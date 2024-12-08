@@ -98,13 +98,13 @@ func main() {
 		log.Println("Seeding data...")
 		loadUsers(db, "./migrate/users.csv")
 		initSlugger(db)
-		initInventory(db)
-		loadProjects(db, "./migrate/projects.csv")
-		loadProjectStore(db, "./migrate/project_stores.csv")
-		loadCategoriesFromCSV(db, "./migrate/categories.csv")
+		// initInventory(db)
+		// loadProjects(db, "./migrate/projects.csv")
+		// loadProjectStore(db, "./migrate/project_stores.csv")
+		// loadCategoriesFromCSV(db, "./migrate/categories.csv")
 		loadMaterialsFromCSV(db, "./migrate/materials.csv")
-		loadDrawingsFromCSV(db, "./migrate/drawings.csv")
-		loadMateriailOfDrawing(db, "./migrate/boms.csv")
+		// loadDrawingsFromCSV(db, "./migrate/drawings.csv")
+		// loadMateriailOfDrawing(db, "./migrate/boms.csv")
 		log.Println("Done! Seeding data")
 	}
 }
@@ -333,27 +333,49 @@ func loadMaterialsFromCSV(db *gorm.DB, filePath string) error {
 
 	// Process each record
 	for _, record := range records {
-		slug := record[0]
-		title := record[1]
-		subtitle := record[2]
-		categoryID, _ := strconv.Atoi(record[3])
-		isFG, _ := strconv.ParseBool(record[4])
+		categorySlug := record[0]
+		categoryTitle := record[1]
+		slug := record[2]
+		title := record[3]
+		subtitle := record[4]
+		supplier := record[5]
+		defaultPrice, _ := strconv.ParseFloat(record[6], 64)
+		isFG, _ := strconv.ParseBool(record[7])
+		min, _ := strconv.Atoi(record[8])
+		max, _ := strconv.Atoi(record[9])
+		fmt.Printf("categorySlug: %s, slug: %s, title: %s, subtitle: %s, supplier: %s, defaultPrice: %f, isFG: %t, min: %d, max: %d\n", categorySlug, slug, title, subtitle, supplier, defaultPrice, isFG, min, max)
 
-		// Create a new material object
-		material := models.Material{
-			Slug:       slug,
-			Title:      title,
-			Subtitle:   subtitle,
-			Min:        0,
-			Max:        0,
-			CategoryID: uint(categoryID),
-			IsFG:       isFG,
+		if categorySlug == "" || slug == "" || title == "" {
+			log.Println("Skipping record due to missing required fields")
+			continue
 		}
 
-		// Save the material to the database
+		// check and create category
+		var categoryModel models.Category
+		if err := db.Where(models.Category{Slug: categorySlug}).
+			Attrs(models.Category{
+				Slug:  categorySlug,
+				Title: categoryTitle,
+			}).
+			FirstOrCreate(&categoryModel).
+			Error; err != nil {
+			return fmt.Errorf("failed to find or init category: %w", err)
+		}
+		material := models.Material{
+			CategoryID:   categoryModel.ID,
+			Slug:         slug,
+			Title:        title,
+			Subtitle:     subtitle,
+			Supplier:     supplier,
+			DefaultPrice: int64(defaultPrice * 100),
+			IsFG:         isFG,
+			Min:          int64(min),
+			Max:          int64(max),
+		}
 		if err := db.Create(&material).Error; err != nil {
 			return fmt.Errorf("failed to save material to database: %w", err)
 		}
+
 	}
 
 	return nil
