@@ -56,6 +56,7 @@ func (rc *PlannerController) GetExtendOrders(c *gin.Context) {
 
 	var response []models.ExtendOrder
 	if err := rc.DB.
+		Preload("Order").
 		Preload("Project").
 		Preload("ExtendOrderBOMs.Material").
 		Preload("CreatedBy").
@@ -198,7 +199,7 @@ func (rc *PlannerController) CreatePlanner(c *gin.Context) {
 				if need <= 0 {
 					continue
 				} else {
-					for _, inv := range inventoryMaterials {
+					for index, inv := range inventoryMaterials {
 						if inv.MaterialID == matID && inv.AvailableQty > 0 {
 							var tempExistingReserve int64
 							var tempUpdatedReserve int64
@@ -222,9 +223,11 @@ func (rc *PlannerController) CreatePlanner(c *gin.Context) {
 							tempUpdatedReserve = inv.Reserve
 							log.Println("update using: ", using)
 							log.Println("update need: ", need)
-							inventoryMaterials[i].AvailableQty = inv.AvailableQty
-							inventoryMaterials[i].Reserve = inv.Reserve
-							inventoryMaterials[i].IsOutOfStock = inv.IsOutOfStock
+
+							log.Println("index: ", index, "[i]: ", i, "    [j]: ", j, "    [inv]: ", inv.ID, "    [available]: ", inv.AvailableQty, "    [reserve]: ", inv.Reserve, "    [isOutOfStock]: ", inv.IsOutOfStock)
+							inventoryMaterials[index].AvailableQty = inv.AvailableQty
+							inventoryMaterials[index].Reserve = inv.Reserve
+							inventoryMaterials[index].IsOutOfStock = inv.IsOutOfStock
 
 							// create order reserving
 							orderReserving := models.OrderReserving{
@@ -348,6 +351,7 @@ func (rc *PlannerController) updateOrderStatus(orderIDs []uint, extendOrderIDs [
 	if err := TX.
 		Where("id IN ?", extendOrderIDs).
 		Preload("ExtendOrderBOMs").
+		Preload("Order").
 		Find(&extendOrders).
 		Error; err != nil {
 		return err

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"daijai/models"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -25,6 +26,7 @@ func (wc *ExtendOrdererController) GetExtendOrders(c *gin.Context) {
 	var orders []models.ExtendOrder
 	if err := wc.
 		DB.
+		Preload("Order").
 		Preload("Project").
 		Preload("ExtendOrderBOMs.Material").
 		Preload("CreatedBy").
@@ -85,6 +87,7 @@ func (odc *ExtendOrdererController) GetExtendOrderBySlug(c *gin.Context) {
 		DB.
 		Preload("ExtendOrderBOMs.Material").
 		Preload("Project").
+		Preload("Order").
 		Preload("CreatedBy").
 		Where("slug = ?", slug).
 		First(&order).
@@ -120,8 +123,9 @@ func (odc *ExtendOrdererController) CreateExtendOrders(c *gin.Context) {
 		}
 		return nil
 	}); err != nil {
+		errorMsg := fmt.Sprintf("Failed to create ExtendOrders: %s", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create ExtendOrders"})
-		log.Println(err)
+		log.Println(errorMsg)
 		return
 	}
 	c.JSON(http.StatusCreated, order)

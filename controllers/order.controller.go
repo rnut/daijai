@@ -148,12 +148,19 @@ func (odc *OrderController) GetOrders(c *gin.Context) {
 	isFG := materialType == models.MaterialType_FinishedGood
 
 	var orders []models.Order
-	if err := odc.
+	query := odc.
 		DB.
 		Preload("Drawing").
 		Preload("CreatedBy").
 		Preload("OrderBOMs").
-		Where("is_fg = ?", isFG).
+		Where("is_fg = ?", isFG)
+
+	projectID := c.Query("project_id")
+	if projectID != "" {
+		query = query.Where("project_id = ?", projectID)
+	}
+
+	if err := query.
 		Find(&orders).
 		Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Orders"})
