@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"daijai/models"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -14,6 +15,7 @@ import (
 type OrderController struct {
 	DB *gorm.DB
 	BaseController
+	DebugController
 }
 
 // NewDrawingController creates a new instance of DrawingController.
@@ -49,8 +51,37 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 	}
 
 	var drawing models.Drawing
-	if err := odc.DB.Preload("BOMs.Material").First(&drawing, request.DrawingID).Error; err != nil {
+	if err := odc.
+		DB.
+		Preload("BOMs.Material").
+		First(&drawing, request.DrawingID).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Drawing"})
+		return
+	}
+
+	odc.PrintJSON(drawing)
+
+	// check if drawig material is null
+	var nullMaterials []uint
+	for _, bom := range drawing.BOMs {
+		if bom.Material == nil {
+			nullMaterials = append(nullMaterials, bom.MaterialID)
+		}
+	}
+	if len(nullMaterials) > 0 {
+		var mats []models.Material
+		if err := odc.DB.Unscoped().Find(&mats, nullMaterials).Error; err != nil {
+			log.Printf("Error: %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Drawing has null material", "material_id": nullMaterials})
+			return
+		}
+		errorMessage := "Materials-IDs: "
+		for _, v := range mats {
+			errorMessage += fmt.Sprintf("[%s] ", v.Slug)
+		}
+
+		errorMessage += "has some problem. Please check it out at materials page"
+		c.JSON(http.StatusPreconditionFailed, gin.H{"error": errorMessage})
 		return
 	}
 
@@ -104,8 +135,8 @@ func (odc *OrderController) CreateOrder(c *gin.Context) {
 		}
 		return nil
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Order"})
-		log.Println(err)
+		log.Printf("Error: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create Order"})
 		return
 	}
 	c.JSON(http.StatusCreated, order)
