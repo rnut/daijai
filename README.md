@@ -30,3 +30,30 @@
 1. set slug config in `slug.model.go`
 2. add model to function `initSlugger` in `migrator.go`
 3. run migrate
+
+### migrate sql
+
+```
+DELETE FROM inventory_materials
+WHERE material_id IN (
+    SELECT id FROM materials WHERE category_id = 1
+);
+DELETE FROM adjustments
+WHERE material_id IN (
+    SELECT id FROM materials WHERE category_id = 1
+);
+
+DELETE FROM adjustments
+WHERE material_id IN (
+    SELECT id FROM materials WHERE category_id = 1
+);
+
+DELETE FROM sum_material_inventories
+WHERE material_id IN (
+    SELECT id FROM materials WHERE category_id = 1
+);
+
+DELETE FROM materials WHERE category_id = 1;
+
+
+```

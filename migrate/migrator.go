@@ -96,15 +96,15 @@ func main() {
 
 	if seedFlag {
 		log.Println("Seeding data...")
-		loadUsers(db, "./migrate/users.csv")
-		initSlugger(db)
-		initInventory(db)
-		loadProjects(db, "./migrate/projects.csv")
-		loadProjectStore(db, "./migrate/project_stores.csv")
+		// loadUsers(db, "./migrate/users.csv")
+		// initSlugger(db)
+		// initInventory(db)
+		// loadProjects(db, "./migrate/projects.csv")
+		// loadProjectStore(db, "./migrate/project_stores.csv")
 		loadCategoriesFromCSV(db, "./migrate/categories.csv")
-		loadMaterialsFromCSV(db, "./migrate/materials.csv")
-		loadDrawingsFromCSV(db, "./migrate/drawings.csv")
-		loadMateriailOfDrawing(db, "./migrate/boms.csv")
+		// loadMaterialsFromCSV(db, "./migrate/materials.csv")
+		// loadDrawingsFromCSV(db, "./migrate/drawings.csv")
+		// loadMateriailOfDrawing(db, "./migrate/boms.csv")
 		log.Println("Done! Seeding data")
 	}
 }
@@ -221,15 +221,17 @@ func loadProjects(db *gorm.DB, filePath string) error {
 
 	// Process each record
 	for _, record := range records {
-		slug := record[0]
-		title := record[1]
+		slug := record[1]
+		title := record[2]
+		subtitle := record[3]
 		project := models.Project{
 			Slug:  slug,
-			Title: title,
+			Title: fmt.Sprintf("%s %s", title, subtitle),
 		}
 		// Save the drawing to the database
 		if err := db.Create(&project).Error; err != nil {
-			return fmt.Errorf("failed to save project to database: %w", err)
+			log.Printf("Failed to save project: %s error:  %v", slug, err)
+			continue
 		}
 	}
 	return nil
@@ -304,7 +306,8 @@ func loadCategoriesFromCSV(db *gorm.DB, filePath string) error {
 		}
 
 		if err := db.Create(&category).Error; err != nil {
-			return fmt.Errorf("failed to save material to database: %w", err)
+			log.Println("failed to save material to database: %w", err)
+			continue
 		}
 	}
 

@@ -35,8 +35,8 @@ func (Order) GenerateSlug() Slugger {
 func (Withdrawal) GenerateSlug() Slugger {
 	return Slugger{
 		TableName: "withdrawals",
-		Prefix:    "WDW-",
-		Pad:       7,
+		Prefix:    "Bill 001/",
+		Pad:       4,
 		Value:     0,
 	}
 }
