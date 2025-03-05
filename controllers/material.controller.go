@@ -69,6 +69,7 @@ func (mc *MaterialController) SearchMaterials(c *gin.Context) {
 
 	if err := query.
 		Preload("Category").
+		Preload("Sums").
 		Order("materials.id ASC").
 		Find(&materials).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve materials"})
