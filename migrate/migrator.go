@@ -6,9 +6,11 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -96,13 +98,22 @@ func main() {
 
 	if seedFlag {
 		log.Println("Seeding data...")
-		// loadUsers(db, "./migrate/users.csv")
-		// initSlugger(db)
-		// initInventory(db)
-		// loadProjects(db, "./migrate/projects.csv")
-		// loadProjectStore(db, "./migrate/project_stores.csv")
+		loadUsers(db, "./migrate/users.csv")
+		initSlugger(db)
+		initInventory(db)
+		loadProjects(db, "./migrate/projects.csv")
+		loadProjectStore(db, "./migrate/project_stores.csv")
 		loadCategoriesFromCSV(db, "./migrate/categories.csv")
-		// loadMaterialsFromCSV(db, "./migrate/materials.csv")
+
+		// get all files in the materials folder
+		files, err := ioutil.ReadDir("./migrate/materials")
+		if err != nil {
+			log.Println("Failed to read materials folder: ", err)
+		}
+		for _, file := range files {
+			loadMaterialsFromCSV(db, fmt.Sprintf("./migrate/materials/%s", file.Name()))
+			// loadMaterialsFromCSV(db, "./migrate/materials.csv")
+		}
 		// loadDrawingsFromCSV(db, "./migrate/drawings.csv")
 		// loadMateriailOfDrawing(db, "./migrate/boms.csv")
 		log.Println("Done! Seeding data")
@@ -221,9 +232,9 @@ func loadProjects(db *gorm.DB, filePath string) error {
 
 	// Process each record
 	for _, record := range records {
-		slug := record[1]
-		title := record[2]
-		subtitle := record[3]
+		slug := strings.TrimSpace(record[0])
+		title := record[1]
+		subtitle := record[2]
 		project := models.Project{
 			Slug:  slug,
 			Title: fmt.Sprintf("%s %s", title, subtitle),
@@ -259,16 +270,25 @@ func loadProjectStore(db *gorm.DB, filePath string) error {
 
 	// Process each record
 	for _, record := range records {
-		slug := record[0]
+		slug := strings.TrimSpace(record[0])
 		title := record[1]
-		projectID, _ := strconv.Atoi(record[2])
-		project := models.ProjectStore{
+		var project models.Project
+		if err != nil {
+			continue
+		}
+
+		if err := db.First(&project, "slug = ?", slug).Error; err != nil {
+			log.Printf("Failed to find project: %s error:  %v", slug, err)
+			continue
+		}
+
+		store := models.ProjectStore{
 			Slug:      slug,
 			Title:     title,
-			ProjectID: uint(projectID),
+			ProjectID: project.ID,
 		}
 		// Save the drawing to the database
-		if err := db.Create(&project).Error; err != nil {
+		if err := db.Create(&store).Error; err != nil {
 			return fmt.Errorf("failed to save project to database: %w", err)
 		}
 	}
@@ -315,26 +335,33 @@ func loadCategoriesFromCSV(db *gorm.DB, filePath string) error {
 }
 
 func loadMaterialsFromCSV(db *gorm.DB, filePath string) error {
+	log.Println("Loading materials from CSV file: ", filePath)
 	// Open the CSV file
 	file, err := os.Open(filePath)
 	if err != nil {
-		return fmt.Errorf("failed to open CSV file: %w", err)
+		errMsg := fmt.Errorf("failed to open CSV file: %w", err)
+		log.Println(errMsg.Error())
+		return errMsg
 	}
 	defer file.Close()
 
 	// Create a new CSV reader
 	reader := csv.NewReader(file)
-
 	// Read the CSV records
 	records, err := reader.ReadAll()
 	if err != nil {
-		return fmt.Errorf("failed to read CSV records: %w", err)
+		errMsg := fmt.Errorf("failed to read CSV records: %w", err)
+		log.Println(errMsg.Error())
+		return errMsg
 	}
 
 	// Skip the first header row
 	records = records[1:]
 
+	count := len(records)
+
 	// Process each record
+	log.Println("Total records: ", count)
 	for _, record := range records {
 		categorySlug := record[0]
 		categoryTitle := record[1]
@@ -346,14 +373,22 @@ func loadMaterialsFromCSV(db *gorm.DB, filePath string) error {
 		isFG, _ := strconv.ParseBool(record[7])
 		min, _ := strconv.Atoi(record[8])
 		max, _ := strconv.Atoi(record[9])
-		fmt.Printf("categorySlug: %s, slug: %s, title: %s, subtitle: %s, supplier: %s, defaultPrice: %f, isFG: %t, min: %d, max: %d\n", categorySlug, slug, title, subtitle, supplier, defaultPrice, isFG, min, max)
+		stock := 0
+		rawStock := strings.TrimSpace(record[10])
+		if rawStock != "" && rawStock != "-" {
+			if s, err := strconv.Atoi(rawStock); err == nil {
+				stock = s
+			} else {
+				log.Printf("%s - Failed to convert stock-value: %s ", slug, rawStock)
+			}
+		}
 
 		if categorySlug == "" || slug == "" || title == "" {
-			log.Println("Skipping record due to missing required fields")
+			pV := fmt.Sprintf("categorySlug: %s, catTitle: %s, slug: %s, title: %s, subtitle: %s, supplier: %s, defaultPrice: %f, isFG: %t, min: %d, max: %d, stock: %d\n", categorySlug, categoryTitle, slug, title, subtitle, supplier, defaultPrice, isFG, min, max, stock)
+			log.Println("🔥 Skip ⏭️", pV)
 			continue
 		}
 
-		// check and create category
 		var categoryModel models.Category
 		if err := db.Where(models.Category{Slug: categorySlug}).
 			Attrs(models.Category{
@@ -362,25 +397,86 @@ func loadMaterialsFromCSV(db *gorm.DB, filePath string) error {
 			}).
 			FirstOrCreate(&categoryModel).
 			Error; err != nil {
-			return fmt.Errorf("failed to find or init category: %w", err)
+			errMsg := fmt.Errorf("failed to find category: %s  - id: %s", categorySlug, slug)
+			log.Println(errMsg.Error())
+			return errMsg
 		}
 		material := models.Material{
 			CategoryID:   categoryModel.ID,
-			Slug:         slug,
-			Title:        title,
-			Subtitle:     subtitle,
-			Supplier:     supplier,
+			Slug:         strings.TrimSpace(slug),
+			Title:        strings.TrimSpace(title),
+			Subtitle:     strings.TrimSpace(subtitle),
+			Supplier:     strings.TrimSpace(supplier),
 			DefaultPrice: int64(defaultPrice * 100),
 			IsFG:         isFG,
 			Min:          int64(min),
 			Max:          int64(max),
+			ImagePath:    fmt.Sprintf("/materials/%s.jpg", slug),
 		}
 		if err := db.Create(&material).Error; err != nil {
-			return fmt.Errorf("failed to save material to database: %w", err)
+			log.Printf("🥶 Failed  %s: %v\n", slug, err)
+			continue
 		}
 
-	}
+		// adjust stock
+		outOfStock := stock == 0
+		if outOfStock {
+			continue
+		}
+		if err := db.Transaction(func(tx *gorm.DB) error {
+			invt := uint(1)
+			stock := int64(stock * 100)
+			ppu := int64(defaultPrice * 100)
+			adjustment := models.Adjustment{
+				Quantity:     stock,
+				MaterialID:   material.ID,
+				InventoryID:  invt,
+				CreatedByID:  1,
+				PricePerUnit: ppu,
+			}
+			if err := tx.Create(&adjustment).Error; err != nil {
+				log.Printf("Failed to create adjustment for material %s: %v\n", title, err)
+				return nil
+			}
 
+			// create inventory material
+			inventoryMaterial := models.InventoryMaterial{
+				InventoryID:           invt,
+				MaterialID:            material.ID,
+				AdjustmentID:          &adjustment.ID,
+				Quantity:              stock,
+				AvailableQty:          stock,
+				IsOutOfStock:          outOfStock,
+				Price:                 ppu,
+				InventoryMaterialType: models.InventoryMaterialType_Adjust,
+			}
+			if err := tx.Create(&inventoryMaterial).Error; err != nil {
+				log.Printf("Failed to create inventory material for material %s: %v\n", title, err)
+				return nil
+			}
+			// log.Printf("Material %s quantity: %d created \n", title, stock)
+
+			var sumMaterialInventory models.SumMaterialInventory
+			if err := db.
+				Where("material_id = ?", material.ID).
+				Where("inventory_id = ?", invt).
+				FirstOrInit(&sumMaterialInventory).Error; err != nil {
+				return err
+			}
+
+			sumMaterialInventory.MaterialID = material.ID
+			sumMaterialInventory.InventoryID = invt
+			sumMaterialInventory.Quantity = stock
+			sumMaterialInventory.Price = ppu
+			if err := db.Save(&sumMaterialInventory).Error; err != nil {
+				log.Printf("Failed to save sum material inventory for material %s: %v\n", title, err)
+				return nil
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

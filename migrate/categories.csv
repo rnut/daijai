@@ -1,21 +1,22 @@
-DA,Board ไม้,ไม้,0
-DB,Edging (ปิดขอบ),ปิดผิว,0
-DC,Accessories&Fitting อุปกรณ์ ประกอบ,อุปกรณ์ ประกอบ,0
-DD,Painting สี,สี,0
-DE,Packing บรรจุภัณฑ์,บรรจุภัณฑ์,0
-DF,Finishing (ปิดผิว),วัสดุสิ้นเปลือง,0
-DG,Consumables วัสดุสิ้นเปลือง,วัสดุสำนักงาน,0
-DH,Office equipment วัสดุสำนักงาน,ค่าบริการ,0
-DI,Equipment อุปกรณ์ เครื่องมือ,อุปกรณ์ เครื่องมือ,0
-DJ,Stainless steel สแตนเลส,ก่อนสร้าง,0
-DK,Aluminium อลูมิเนียม,สถานที่ติดตั้ง,0
-DL,Electricity (อุปกรณ์ไฟฟ้า),สแตนเลส,0
-DM,Plumbing (อุปกรณ์ประปา),อลูมิเนียม,0
-DN,Buy into the project ซื้อเข้าโครงการ,เฟอร์นิเจอร์บิ้วอิน,0
-DO,Damaged item ของ ชำรุด,เฟอร์นิเจอร์ลอยตัว,0
-DP,Service free ค่าบริการ,แบรนด์ fav chair,0
-DQ,Construction ก่อสร้าง,ผนัง,0
-DR,Site Installation สถานที่ติดตั้ง,,0
+Category-ID,Title,Subtitle,IS_FG
+DA,Board ไม้,,0
+DB,Edge Banding (ปิดขอบ),,0
+DC,Accessories&Fitting อุปกรณ์ ประกอบ,,0
+DD,Painting สี ,,0
+DE,Packing บรรจุภัณฑ์ ,,0
+DF,Finishing (ปิดผิว),,0
+DG,Consumables วัสดุสิ้นเปลือง ,,0
+DH,Office equipment วัสดุสำนักงาน,,0
+DI,Equipment อุปกรณ์ เครื่องมือ,,0
+DJ,Stainless steel สแตนเลส ,,0
+DK,Aluminium อลูมิเนียม,,0
+DL,Electricity (อุปกรณ์ไฟฟ้า),,0
+DM,Plumbing (อุปกรณ์ประปา),,0
+DN,Buy into the project ซื้อเข้าโครงการ,,0
+DO,Damaged item ของ ชำรุด,,0
+DP,Service free ค่าบริการ,,0
+DQ,Construction ก่อสร้าง,,0
+DR, Site Installation สถานที่ติดตั้ง,,0
 BF,Built in Furniture,,1
 LF,LoosFurniture,,1
 FC,FavChair,,1
